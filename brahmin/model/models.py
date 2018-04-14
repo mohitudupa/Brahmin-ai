@@ -7,10 +7,14 @@ class Inst(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=50)
     version = models.CharField(max_length=50)
+    date_created = models.DateTimeField()
     last_modified = models.DateTimeField()
     trash = models.BooleanField()
     private = models.BooleanField()
     pickle = models.TextField()
+    confidence = models.FloatField()
+    docs = models.TextField()
 
     def __str__(self):
-        return "Model: " + self.user.first_name + " - " + str(self.name) + " ( " + str(self.version) + " )"
+        return("Model: " + self.user.first_name + " - " + str(self.name) + " - " +
+               str(self.version) + " ( " + str(self.pk) + " )")

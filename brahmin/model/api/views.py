@@ -1,10 +1,10 @@
 from model.models import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import authentication, permissions
+from rest_framework import permissions
 from rest_framework.authtoken.models import Token
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate
 import re
 import datetime
 from sklearn import *
@@ -13,6 +13,7 @@ import base64
 import pickle
 
 
+number = r'^[0-9]+$'
 name = r'^[a-zA-Z\' ]+$'
 email = r'^.+@.+\..+$'
 password = r'^.{8}'
@@ -24,7 +25,7 @@ array = r'^\[(.*)*\]$'
 def validate(data, keys, regex, error):
     for i in range(len(keys)):
         if not bool(re.match(regex[i], data[keys[i]])):
-            error[keys[i]] = "invalid input"
+            error["error"].append(keys[i] + " invalid input")
     return error
 
 
@@ -41,7 +42,7 @@ class Register(APIView):
     def post(self, request, format=None):
         # Validating registration data
         data = request.data
-        error = {}
+        error = {"error": []}
 
         try:
 
@@ -53,20 +54,21 @@ class Register(APIView):
 
             try:
                 User.objects.get(email=data['email'])
-                error["email"] = "email already exists"
+                error["error"].append("email already exists")
             except User.DoesNotExist:
                 pass
 
             try:
                 User.objects.get(username=data['username'])
-                error["username"] = "username already exists"
+                error["error"].append("username already exists")
             except User.DoesNotExist:
                 pass
 
         except KeyError:
-            error["format"] = "The following values are required: first_name, last_name, username, password and email"
+            error["error"].append("The following values are required: first_name, last_name, username, "
+                                  "password and email")
 
-        if error:
+        if error["error"]:
             return Response(error)
 
         # No errors are found, registering user
@@ -91,7 +93,7 @@ class GetToken(APIView):
 
     def post(self, request, format=None):
         data = request.data
-        error = {}
+        error = {"error": []}
         # Validating login data
         try:
 
@@ -100,15 +102,50 @@ class GetToken(APIView):
             error = validate(data, keys, regex, error)
 
         except KeyError:
-            error["format"] = "The following values are required: username and password"
+            error["error"].append("The following values are required: username and password")
 
-        if error:
+        if error["error"]:
             return Response(error)
         # Auth
         user = authenticate(request, username=data['username'], password=data['password'])
         if user is not None:
             return Response({"token": Token.objects.get(user=user).key})
-        return Response({"error": "Invalid username or password"})
+        return Response({"error": ["Invalid username or password"]})
+
+
+class Clone(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+
+        # Validating registration data
+        data = request.data
+        error = {"error": []}
+        x = []
+        try:
+            keys = ["id"]
+            regex = [number]
+            error = validate(data, keys, regex, error)
+
+            x = Inst.objects.get(id=int(data["id"]))
+            if x.private and x.user != user:
+                error["error"].append("Model is private")
+        except Inst.DoesNotExist:
+            error["error"].append("Model does not exist")
+        except KeyError:
+            error["error"].append("The following values are required: id")
+
+        if error["error"]:
+            return Response(error)
+
+        # Saving new model
+        model = Inst(user=user, name=x.name, version=x.version, date_created=datetime.datetime.now(),
+                     last_modified=datetime.datetime.now(), private=x.private,
+                     trash=x.trash, pickle=x.pickle, confidence=x.confidence, docs=x.docs)
+        model.save()
+
+        return Response({"New model id": model.pk})
 
 
 class Upload(APIView):
@@ -119,35 +156,33 @@ class Upload(APIView):
 
         # Validating registration data
         data = request.data
-        error = {}
+        error = {"error": []}
         x = []
         try:
-            keys = ["name", "version", "pickle", "private"]
-            regex = [text, text, text, boolean]
+            keys = ["name", "version", "pickle", "private", "docs"]
+            regex = [text, text, text, boolean, text]
             error = validate(data, keys, regex, error)
 
-            x = list(Inst.objects.filter(user=user, name=data['name'], version=data['version'], trash=False))
-            if x:
-                error["error"] = "Model and version already exists, use update command to update required version"
             try:
                 obj = pickle.loads(base64.b64decode(request.data['pickle']))
                 """if str(type(obj))[8:-2].split(".")[0] != "sklearn":
-                    error["error"] = "Not of type sklearn"
+                    error["error"].append("Not of type sklearn")
                 """
             except:
-                error["error"] = "invalid pickle"
+                error["error"].append("invalid pickle")
         except KeyError:
-            error["format"] = "The following values are required: name, version, pickle and private"
+            error["error"].append("The following values are required: name, version, pickle, private and docs")
 
-        if error:
+        if error["error"]:
             return Response(error)
 
         # Saving model
-        model = Inst(user=user, name=data['name'], version=data['version'], last_modified=datetime.datetime.now(),
-                     private=eval(data['private']), trash=False, pickle=data['pickle'])
+        model = Inst(user=user, name=data['name'], version=data['version'], date_created=datetime.datetime.now(),
+                     last_modified=datetime.datetime.now(), private=eval(data['private']),
+                     trash=False, pickle=data['pickle'], confidence=0, docs=data['docs'])
         model.save()
 
-        return Response({"Success": "Model created " + model.name + " - " + model.version})
+        return Response({"Model ID": model.pk})
 
 
 class Update(APIView):
@@ -158,40 +193,39 @@ class Update(APIView):
 
         # Validating registration data
         data = request.data
-        error = {}
+        error = {"error": []}
         x = []
         try:
-            keys = ["name", "version", "new_name", "new_version", "new_pickle", "new_private"]
-            regex = [text, text, text, text, text, boolean]
+            keys = ["id", "new_name", "new_version", "new_pickle", "new_private", "new_docs"]
+            regex = [number, text, text, text, boolean, text]
             error = validate(data, keys, regex, error)
 
-            x = list(Inst.objects.filter(user=user, name=data['name'], version=data['version'], trash=False))
-            if not x:
-                error["error"] = "Model and version does not exist, use upload command to upload a new model"
-
-            x = list(Inst.objects.filter(user=user, name=data['new_name'], version=data['new_version'], trash=False))
-            if x:
-                error["error"] = "New model name and version name already exists"
+            x = Inst.objects.get(user=user, id=int(data['id']))
 
             try:
                 obj = pickle.loads(base64.b64decode(request.data['new_pickle']))
                 """if str(type(obj))[8:-2].split(".")[0] != "sklearn":
-                    error["error"] = "Not of type sklearn"
+                    error["error"].append("Not of type sklearn")
                 """
-            except:
-                error["error"] = "invalid pickle"
-        except KeyError:
-            error["format"] = "The following values are required: name, version, new_name, new_version, " \
-                              "new_pickle and new_private"
+            except Exception:
+                error["error"].append("invalid pickle")
 
-        if error:
+        except Inst.DoesNotExist:
+            error["error"].append("Model does not exist")
+        except KeyError:
+            error["error"].append("The following values are required: id, new_name, new_version, "
+                                  "new_pickle, new_private and new_docs")
+
+        if error["error"]:
             return Response(error)
 
-        x[0].name = data["new_name"]
-        x[0].version = data["new_version"]
-        x[0].pickle = data["new_pickle"]
-        x[0].private = data["new_private"]
-        x[0].save()
+        x.name = data["new_name"]
+        x.version = data["new_version"]
+        x.last_modified = datetime.datetime.now()
+        x.pickle = data["new_pickle"]
+        x.private = data["new_private"]
+        x.docs = data["new_docs"]
+        x.save()
         return Response(data)
 
 
@@ -201,37 +235,26 @@ class Delete(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        error = {}
+        error = {"error": []}
         x = []
         try:
-            keys = ["name", "version"]
-            regex = [text, text]
+            keys = ["id"]
+            regex = [number]
             error = validate(data, keys, regex, error)
 
-            x = list(Inst.objects.filter(user=user, name=data['name'], version=data['version'], trash=False))
-            if not x:
-                error["error"] = "Model and version does not exist"
-            y = list(Inst.objects.filter(user=user, name=data['name'], version=data['version'], trash=True))
-            if y:
-                i = 0
-                try:
-                    while 1:
-                        version = data['version'] + " - " + str(i)
-                        Inst.objects.get(user=user, name=data['name'], version=version, trash=True)
-                        i += 1
-                except Inst.DoesNotExist:
-                    y[0].version = y[0].version + " - " + str(i)
-                    y[0].save()
-
+            x = Inst.objects.get(user=user, id=int(data["id"]), trash=False)
+        except Inst.DoesNotExist:
+            error["error"].append("Model does not exist")
         except KeyError:
-            error["format"] = "The following values are required: name, version"
+            error["error"].append("The following values are required: id")
 
-        if error:
+        if error["error"]:
             return Response(error)
 
-        x[0].trash = True
-        x[0].save()
-        return Response({"Success": "Model: " + data["name"] + " - " + data["version"] + " moved to trash"})
+        x.trash = True
+        x.last_modified = datetime.datetime.now()
+        x.save()
+        return Response({"Success": "Model: " + data["id"] + " moved to trash"})
 
 
 class Restore(APIView):
@@ -240,29 +263,26 @@ class Restore(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        error = {}
+        error = {"error": []}
         x = []
         try:
-            keys = ["name", "version"]
-            regex = [text, text]
+            keys = ["id"]
+            regex = [number]
             error = validate(data, keys, regex, error)
 
-            x = list(Inst.objects.filter(user=user, name=data['name'], version=data['version'], trash=False))
-            if x:
-                error["error"] = "Model and version already exists, rename conflicting model"
-
-            x = list(Inst.objects.filter(user=user, name=data['name'], version=data['version'], trash=True))
-            if not x:
-                error["error"] = "Model and version does not exist in trash"
+            x = Inst.objects.get(user=user, id=int(data["id"]), trash=True)
+        except Inst.DoesNotExist:
+            error["error"].append("Model does not exist")
         except KeyError:
-            error["format"] = "The following values are required: name, version"
+            error["error"].append("The following values are required: id")
 
-        if error:
+        if error["error"]:
             return Response(error)
 
-        x[0].trash = False
-        x[0].save()
-        return Response({"Success": "Model: " + data["name"] + " - " + data["version"] + " restored from trash"})
+        x.trash = False
+        x.last_modified = datetime.datetime.now()
+        x.save()
+        return Response({"Success": "Model: " + data["id"] + " restored from trash"})
 
 
 class GetDetails(APIView):
@@ -271,7 +291,7 @@ class GetDetails(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        error = {}
+        error = {"error": []}
         final = {}
         try:
             keys = ["trash"]
@@ -280,13 +300,18 @@ class GetDetails(APIView):
             x = Inst.objects.filter(user=user, trash=eval(data['trash']))
             for i in x:
                 if i.name not in final:
-                    final[i.name] = [i.version]
-                else:
-                    final[i.name].append(i.version)
+                    final[i.name] = {}
+                if i.version not in final[i.name]:
+                    final[i.name][i.version] = []
+                final[i.name][i.version].append({
+                    "id": i.id,
+                    "date_created": i.date_created,
+                    "confidence": i.confidence
+                })
         except KeyError:
-            error["format"] = "The following values are required: trash"
+            error["error"].append("The following values are required: trash")
 
-        if error:
+        if error["error"]:
             return Response(error)
         return Response(final)
 
@@ -297,20 +322,20 @@ class GetNames(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        error = {}
-        final = {"names": []}
+        error = {"error": []}
+        final = {"names": set()}
         try:
             keys = ["trash"]
             regex = [boolean]
             error = validate(data, keys, regex, error)
             x = Inst.objects.filter(user=user, trash=eval(data['trash']))
             for i in x:
-                final['names'].append(i.name)
-            final['names'] = list(set(final['names']))
+                final['names'].update({i.name})
+            final['names'] = list(final['names'])
         except KeyError:
-            error["format"] = "The following values are required: trash"
+            error["error"].append("The following values are required: trash")
 
-        if error:
+        if error["error"]:
             return Response(error)
         return Response(final)
 
@@ -321,20 +346,43 @@ class GetVersions(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        error = {}
-        final = {"versions": []}
+        error = {"error": []}
+        final = {"versions": set()}
         try:
             keys = ["name", "trash"]
             regex = [text, boolean]
             error = validate(data, keys, regex, error)
             x = Inst.objects.filter(user=user, name=data['name'], trash=eval(data['trash']))
             for i in x:
-                final['versions'].append(i.version)
-            final['versions'] = list(set(final['versions']))
+                final['versions'].update({i.version})
+            final['versions'] = list(final['versions'])
         except KeyError:
-            error["format"] = "The following values are required: name, trash"
+            error["error"].append("The following values are required: name, trash")
 
-        if error:
+        if error["error"]:
+            return Response(error)
+        return Response(final)
+
+
+class GetInstances(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        error = {"error": []}
+        final = {"id": []}
+        try:
+            keys = ["name", "version", "trash"]
+            regex = [text, text, boolean]
+            error = validate(data, keys, regex, error)
+            x = Inst.objects.filter(user=user, name=data["name"], version=data["version"], trash=eval(data['trash']))
+            for i in x:
+                final["id"].append(i.id)
+        except KeyError:
+            error["error"].append("The following values are required: name, version, trash")
+
+        if error["error"]:
             return Response(error)
         return Response(final)
 
@@ -345,24 +393,27 @@ class GetModel(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        error = {}
+        error = {"error": []}
         x = []
 
         try:
-            keys = ["name", "version", "trash"]
-            regex = [text, text, boolean]
+            keys = ["id",]
+            regex = [number]
             error = validate(data, keys, regex, error)
 
-            x = Inst.objects.get(user=user, name=data['name'], version=data['version'], trash=eval(data['trash']))
+            x = Inst.objects.get(id=int(data["id"]))
+            if x.private and x.user != user:
+                error["error"].append("Model is private")
         except Inst.DoesNotExist:
-            error["error"] = "model does not exist"
+            error["error"].append("Model does not exist")
         except KeyError:
-            error["format"] = "The following values are required: name, version, trash"
+            error["error"].append("The following values are required: id")
 
-        if error:
+        if error["error"]:
             return Response(error)
-        return Response({"name": x.name, "version": x.version, "last_modified": x.last_modified,
-                         "trash": x.trash, "private": x.private, "pickle": x.pickle})
+        return Response({"id": x.id, "name": x.name, "version": x.version,"date_created": x.date_created,
+                         "last_modified": x.last_modified, "trash": x.trash, "private": x.private,
+                         "pickle": x.pickle,"confidence": x.confidence, "docs": x.docs})
 
 
 class Train(APIView):
@@ -371,35 +422,34 @@ class Train(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        error = {}
+        error = {"error": []}
         x_train = []
         y_train = []
         x = ''
         try:
-            keys = ["name", "version", "x_train", "y_train"]
-            regex = [text, text, array, array]
+            keys = ["id", "x_train", "y_train"]
+            regex = [number, array, array]
             error = validate(data, keys, regex, error)
 
             x_train = np.array(eval(data['x_train']))
             y_train = np.array(eval(data['y_train']))
-
-            x = Inst.objects.get(user=user, name=data['name'], version=data['version'])
             if len(x_train) != len(y_train):
-                error["error"] = "error in training data"
+                error["error"].append("error in training data")
 
+            x = Inst.objects.get(user=user, id=int(data["id"]))
         except Inst.DoesNotExist:
-            error["error"] = "model does not exist"
+            error["error"].append("Model does not exist")
         except KeyError:
-            error["format"] = "The following values are required: name, version, x_train, y_train"
+            error["error"].append("The following values are required: id, x_train, y_train")
 
-        if error:
+        if error["error"]:
             return Response(error)
 
         # Training the model
         cls = pickle.loads(base64.b64decode(x.pickle))
         cls.fit(x_train, y_train)
 
-        return Response({"success": "True"})
+        return Response({"success": "The model was trained successfully"})
 
 
 class Test(APIView):
@@ -408,33 +458,35 @@ class Test(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        error = {}
+        error = {"error": []}
         x_test = []
         y_test = []
         x = ''
         try:
-            keys = ["name", "version", "x_test", "y_test"]
-            regex = [text, text, array, array]
+            keys = ["id", "x_test", "y_test"]
+            regex = [number, array, array]
             error = validate(data, keys, regex, error)
 
             x_test = np.array(eval(data['x_test']))
             y_test = np.array(eval(data['y_test']))
-
-            x = Inst.objects.get(user=user, name=data['name'], version=data['version'])
             if len(x_test) != len(y_test):
-                error["error"] = "error in training data"
+                error["error"].append("error in training data")
 
+            x = Inst.objects.get(user=user, id=int(data["id"]))
         except Inst.DoesNotExist:
-            error["error"] = "model does not exist"
+            error["error"].append("Invalid model id")
         except KeyError:
-            error["format"] = "The following values are required: name, version, x_test, y_test"
+            error["error"].append("The following values are required: id, x_test, y_test")
 
-        if error:
+        if error["error"]:
             return Response(error)
 
         # Testing the model
         cls = pickle.loads(base64.b64decode(x.pickle))
         confidence = cls.score(x_test, y_test)
+
+        x.confidence = confidence
+        x.save()
 
         return Response({"confidence": confidence})
 
@@ -445,12 +497,12 @@ class Predict(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        error = {}
+        error = {"error": []}
         x_predict = []
         x = ''
         try:
-            keys = ["name", "version", "x_predict"]
-            regex = [text, text, array]
+            keys = ["id", "x_predict"]
+            regex = [number, array]
             error = validate(data, keys, regex, error)
 
             x_predict = np.array(eval(data['x_predict']))
@@ -458,10 +510,11 @@ class Predict(APIView):
 
             x = Inst.objects.get(user=user, name=data['name'], version=data['version'])
         except Inst.DoesNotExist:
-            error["error"] = "model does not exist"
+            error["error"].append("Invalid model id")
         except KeyError:
-            error["format"] = "The following values are required: name, version, x_predict"
-        if error:
+            error["error"].append("The following values are required: id, x_predict")
+
+        if error["error"]:
             return Response(error)
 
         # Testing the model
