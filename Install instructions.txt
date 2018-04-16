@@ -19,16 +19,8 @@ $ pip install Markdown==2.6.11
 $ pip install numpy==1.14.2
 $ pip install scikit-learn==0.19.1
 $ pip install scipy==1.0.1
-$ pip install sklearn==0.0
-$ pip install pymongo==3.6.1
+$ pip insatll sklearn==0.0
 
 # Starting the server
 $ cd brahmin
 $ python manage.py runserver
-
-
-#install mongo compass for visualization of databases
-+ keep a mongo instance running - for this open command prompt as an admin and type "Net start MongoDB"
-+ open compass or use cmds for the following:
-+ create a new db called "modmngt"
-+ create a new collection called "models"
