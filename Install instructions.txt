@@ -20,7 +20,8 @@ $ pip install numpy==1.14.2
 $ pip install scikit-learn==0.19.1
 $ pip install scipy==1.0.1
 $ pip install sklearn==0.0
-$ pip install pymongo==3.6.1
+$ pip install pymongo
+
 
 # Starting the server
 $ cd brahmin
