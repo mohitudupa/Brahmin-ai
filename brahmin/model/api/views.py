@@ -11,6 +11,9 @@ from sklearn import *
 import numpy as np
 import base64
 import pickle
+import pymongo
+from bson.objectid import ObjectId
+import bson
 
 
 number = r'^[0-9]+$'
@@ -20,6 +23,23 @@ password = r'^.{8}'
 text = r'^.+$'
 boolean = r'^(True)$|(False)$'
 array = r'^\[(.*)*\]$'
+
+#mongod connection create a db called "modelmgmt" and a collection called "models" in "modelmgmt" db
+client = pymongo.MongoClient()
+db = client['modelmgmt']
+collection = db['models']
+
+"""
+history = db['history']
+Work in progress
+def log_action(user, action, instance):
+    pass
+"""
+
+def serialize(x):
+   return({"id": str(x["_id"]), "name": x["name"], "version": x["version"],"date_created": x["date_created"],
+                         "last_modified": x["last_modified"], "trash": x["trash"], "private": x["private"],
+                         "pickle": x["pickle"],"confidence": x["confidence"], "docs": x["docs"]})
 
 
 def validate(data, keys, regex, error):
@@ -94,6 +114,7 @@ class GetToken(APIView):
     def post(self, request, format=None):
         data = request.data
         error = {"error": []}
+
         # Validating login data
         try:
 
@@ -118,34 +139,50 @@ class Clone(APIView):
 
     def post(self, request, format=None):
         user = request.user
-
-        # Validating registration data
         data = request.data
         error = {"error": []}
         x = []
+
+        # Validating received data
         try:
             keys = ["id"]
-            regex = [number]
+            regex = [text]
             error = validate(data, keys, regex, error)
 
-            x = Inst.objects.get(id=int(data["id"]))
-            if x.private and x.user != user:
-                error["error"].append("Model is private")
-        except Inst.DoesNotExist:
-            error["error"].append("Model does not exist")
+            x=collection.find_one({"_id":ObjectId(data["id"]),"trash":False})
+
+            if not x:
+                error["error"].append("Instance does not exist")
+            else:    
+                if x["private"] and x["user"] != user.id:
+                    error["error"].append("Instance is private")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+
         except KeyError:
             error["error"].append("The following values are required: id")
 
         if error["error"]:
             return Response(error)
 
-        # Saving new model
-        model = Inst(user=user, name=x.name, version=x.version, date_created=datetime.datetime.now(),
-                     last_modified=datetime.datetime.now(), private=x.private,
-                     trash=x.trash, pickle=x.pickle, confidence=x.confidence, docs=x.docs)
-        model.save()
+        # Cloning instance
+        newmodel = {
+                    "user":user.id,
+                    "name":x["name"],
+                    "version":x["version"],
+                    "date_created":datetime.datetime.now(),
+                    "last_modified":datetime.datetime.now(),
+                    "private":x["private"],
+                    "trash":x["trash"],
+                    "pickle":x["pickle"],
+                    "confidence":x["confidence"],
+                    "docs":x["docs"]
+                    }
+        # Saving new instance
+        pid=collection.insert_one(newmodel).inserted_id
 
-        return Response({"New model id": model.pk})
+        return Response({"Mongo_instance_id":str(pid)})
 
 
 class Upload(APIView):
@@ -153,11 +190,11 @@ class Upload(APIView):
 
     def post(self, request, format=None):
         user = request.user
-
-        # Validating registration data
         data = request.data
         error = {"error": []}
         x = []
+
+        # Validating received data
         try:
             keys = ["name", "version", "pickle", "private", "docs"]
             regex = [text, text, text, boolean, text]
@@ -169,20 +206,30 @@ class Upload(APIView):
                     error["error"].append("Not of type sklearn")
                 """
             except:
-                error["error"].append("invalid pickle")
+                error["error"].append("Invalid pickle")
+
         except KeyError:
             error["error"].append("The following values are required: name, version, pickle, private and docs")
 
         if error["error"]:
             return Response(error)
 
-        # Saving model
-        model = Inst(user=user, name=data['name'], version=data['version'], date_created=datetime.datetime.now(),
-                     last_modified=datetime.datetime.now(), private=eval(data['private']),
-                     trash=False, pickle=data['pickle'], confidence=0, docs=data['docs'])
-        model.save()
+        #Saving new instance
+        newmodel = {
+                    "user":user.id,
+                    "name":data["name"],
+                    "version":data["version"],
+                    "date_created":datetime.datetime.now(),
+                    "last_modified":datetime.datetime.now(),
+                    "private":eval(data["private"]),
+                    "trash":False,
+                    "pickle":data["pickle"],
+                    "confidence":0.0,
+                    "docs":data["docs"]
+                    }
+        pid=collection.insert_one(newmodel).inserted_id
 
-        return Response({"Model ID": model.pk})
+        return Response({"Mongo_instance_id":str(pid)})
 
 
 class Update(APIView):
@@ -190,28 +237,32 @@ class Update(APIView):
 
     def post(self, request, format=None):
         user = request.user
-
-        # Validating registration data
         data = request.data
         error = {"error": []}
         x = []
+
+        # Validating received data
         try:
             keys = ["id", "new_name", "new_version", "new_pickle", "new_private", "new_docs"]
-            regex = [number, text, text, text, boolean, text]
+            regex = [text, text, text, text, boolean, text]
             error = validate(data, keys, regex, error)
 
-            x = Inst.objects.get(user=user, id=int(data['id']))
+            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id})
+            
+            if x:
+                try:
+                    obj = pickle.loads(base64.b64decode(request.data['new_pickle']))
+                    """if str(type(obj))[8:-2].split(".")[0] != "sklearn":
+                        error["error"].append("Not of type sklearn")
+                    """
+                except Exception:
+                    error["error"].append("Invalid pickle")
+            else:
+                error["error"].append("Instance does not exist")
 
-            try:
-                obj = pickle.loads(base64.b64decode(request.data['new_pickle']))
-                """if str(type(obj))[8:-2].split(".")[0] != "sklearn":
-                    error["error"].append("Not of type sklearn")
-                """
-            except Exception:
-                error["error"].append("invalid pickle")
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
 
-        except Inst.DoesNotExist:
-            error["error"].append("Model does not exist")
         except KeyError:
             error["error"].append("The following values are required: id, new_name, new_version, "
                                   "new_pickle, new_private and new_docs")
@@ -219,14 +270,19 @@ class Update(APIView):
         if error["error"]:
             return Response(error)
 
-        x.name = data["new_name"]
-        x.version = data["new_version"]
-        x.last_modified = datetime.datetime.now()
-        x.pickle = data["new_pickle"]
-        x.private = data["new_private"]
-        x.docs = data["new_docs"]
-        x.save()
-        return Response(data)
+        # Updating instance entries
+        res = collection.update_one({"_id":ObjectId(data["id"]),"user":user.id} ,
+        {"$set":{
+            "name":data["new_name"],
+            "version":data["new_version"],
+            "pickle":data["new_pickle"],
+            "private":eval(data["new_private"]),
+            "last_modified":datetime.datetime.now(),
+            "docs":data["new_docs"]}
+        })
+        x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id})
+
+        return Response(serialize(x))
 
 
 class Delete(APIView):
@@ -237,24 +293,32 @@ class Delete(APIView):
         data = request.data
         error = {"error": []}
         x = []
+
+        # Validating received data
         try:
             keys = ["id"]
-            regex = [number]
+            regex = [text]
             error = validate(data, keys, regex, error)
 
-            x = Inst.objects.get(user=user, id=int(data["id"]), trash=False)
-        except Inst.DoesNotExist:
-            error["error"].append("Model does not exist")
+            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False})
+
+            if not x:
+                error["error"].append("Instance does not exist")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+
         except KeyError:
             error["error"].append("The following values are required: id")
 
         if error["error"]:
             return Response(error)
 
-        x.trash = True
-        x.last_modified = datetime.datetime.now()
-        x.save()
-        return Response({"Success": "Model: " + data["id"] + " moved to trash"})
+        # Moving instance into trash
+        res = collection.update_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False} ,
+        {"$set":{"trash":True,"last_modified":datetime.datetime.now()}})
+
+        return Response({"Success": "Instance: " + data["id"] + " moved to trash"})
 
 
 class Restore(APIView):
@@ -265,24 +329,31 @@ class Restore(APIView):
         data = request.data
         error = {"error": []}
         x = []
+
+        # Validating received data
         try:
             keys = ["id"]
-            regex = [number]
+            regex = [text]
             error = validate(data, keys, regex, error)
 
-            x = Inst.objects.get(user=user, id=int(data["id"]), trash=True)
-        except Inst.DoesNotExist:
-            error["error"].append("Model does not exist")
+            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":True})
+
+            if not x:
+                error["error"].append("Instance does not exist")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
         except KeyError:
             error["error"].append("The following values are required: id")
 
         if error["error"]:
             return Response(error)
 
-        x.trash = False
-        x.last_modified = datetime.datetime.now()
-        x.save()
-        return Response({"Success": "Model: " + data["id"] + " restored from trash"})
+        # Restoring instance from trash
+        res = collection.update_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":True} ,
+        {"$set":{"trash":False,"last_modified":datetime.datetime.now()}})
+
+        return Response({"Success": "Instance: " + data["id"] + " restored from trash"})
 
 
 class GetDetails(APIView):
@@ -293,26 +364,33 @@ class GetDetails(APIView):
         data = request.data
         error = {"error": []}
         final = {}
+
+        # Validating received data
         try:
             keys = ["trash"]
             regex = [boolean]
             error = validate(data, keys, regex, error)
-            x = Inst.objects.filter(user=user, trash=eval(data['trash']))
+
+            x=collection.find({"user":user.id,"trash":eval(data["trash"])})
+
+            # Preparing return json data
             for i in x:
-                if i.name not in final:
-                    final[i.name] = {}
-                if i.version not in final[i.name]:
-                    final[i.name][i.version] = []
-                final[i.name][i.version].append({
-                    "id": i.id,
-                    "date_created": i.date_created,
-                    "confidence": i.confidence
+                if i["name"] not in final:
+                    final[i["name"]] = {}
+                if i["version"] not in final[i["name"]]:
+                    final[i["name"]][i["version"]] = []
+                final[i["name"]][i["version"]].append({
+                    "id": str(i["_id"]),
+                    "date_created": i["date_created"],
+                    "confidence": i["confidence"]
                 })
+
         except KeyError:
             error["error"].append("The following values are required: trash")
 
         if error["error"]:
             return Response(error)
+
         return Response(final)
 
 
@@ -324,19 +402,26 @@ class GetNames(APIView):
         data = request.data
         error = {"error": []}
         final = {"names": set()}
+
+        # Validating received data
         try:
             keys = ["trash"]
             regex = [boolean]
             error = validate(data, keys, regex, error)
-            x = Inst.objects.filter(user=user, trash=eval(data['trash']))
+
+            x = collection.find({"user":user.id,"trash":eval(data["trash"])})
+
+            # Preparing return json data
             for i in x:
-                final['names'].update({i.name})
-            final['names'] = list(final['names'])
+                final["names"].add(i["name"])
+            final["names"] = list(final["names"])
+
         except KeyError:
             error["error"].append("The following values are required: trash")
 
         if error["error"]:
             return Response(error)
+
         return Response(final)
 
 
@@ -348,19 +433,26 @@ class GetVersions(APIView):
         data = request.data
         error = {"error": []}
         final = {"versions": set()}
+
+        # Validating received data
         try:
             keys = ["name", "trash"]
             regex = [text, boolean]
             error = validate(data, keys, regex, error)
-            x = Inst.objects.filter(user=user, name=data['name'], trash=eval(data['trash']))
+
+            x=collection.find({"user":user.id,"name":data["name"],"trash":eval(data["trash"])})
+
+            # Preparing return json data
             for i in x:
-                final['versions'].update({i.version})
-            final['versions'] = list(final['versions'])
+                final["versions"].add(i["version"])
+            final["versions"] = list(final["versions"])
+
         except KeyError:
             error["error"].append("The following values are required: name, trash")
 
         if error["error"]:
             return Response(error)
+
         return Response(final)
 
 
@@ -372,18 +464,25 @@ class GetInstances(APIView):
         data = request.data
         error = {"error": []}
         final = {"id": []}
+
+        # Validating received data
         try:
             keys = ["name", "version", "trash"]
             regex = [text, text, boolean]
             error = validate(data, keys, regex, error)
-            x = Inst.objects.filter(user=user, name=data["name"], version=data["version"], trash=eval(data['trash']))
+            
+            x = collection.find({"user":user.id,"name":data["name"],"version":data["version"],"trash":eval(data["trash"])})
+
+            # Preparing return json data
             for i in x:
-                final["id"].append(i.id)
+                final["id"].append(str(i["_id"]))
+
         except KeyError:
             error["error"].append("The following values are required: name, version, trash")
 
         if error["error"]:
             return Response(error)
+
         return Response(final)
 
 
@@ -396,24 +495,30 @@ class GetModel(APIView):
         error = {"error": []}
         x = []
 
+        # Validating received data
         try:
-            keys = ["id",]
-            regex = [number]
+            keys = ["id"]
+            regex = [text]
             error = validate(data, keys, regex, error)
 
-            x = Inst.objects.get(id=int(data["id"]))
-            if x.private and x.user != user:
-                error["error"].append("Model is private")
-        except Inst.DoesNotExist:
-            error["error"].append("Model does not exist")
+            x = collection.find_one({"_id":ObjectId(data["id"]),"trash":False})
+            
+            if not x:
+                error["error"].append("Instance does not exist")
+            else:
+                if x["private"] and x["user"] != user.id:
+                    error["error"].append("Instance is private")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+        
         except KeyError:
             error["error"].append("The following values are required: id")
 
         if error["error"]:
             return Response(error)
-        return Response({"id": x.id, "name": x.name, "version": x.version,"date_created": x.date_created,
-                         "last_modified": x.last_modified, "trash": x.trash, "private": x.private,
-                         "pickle": x.pickle,"confidence": x.confidence, "docs": x.docs})
+
+        return Response(serialize(x))
 
 
 class Train(APIView):
@@ -426,19 +531,26 @@ class Train(APIView):
         x_train = []
         y_train = []
         x = ''
+
+        # Validating received data
         try:
             keys = ["id", "x_train", "y_train"]
-            regex = [number, array, array]
+            regex = [text, array, array]
             error = validate(data, keys, regex, error)
 
             x_train = np.array(eval(data['x_train']))
             y_train = np.array(eval(data['y_train']))
             if len(x_train) != len(y_train):
-                error["error"].append("error in training data")
+                error["error"].append("Error in training data")
 
-            x = Inst.objects.get(user=user, id=int(data["id"]))
-        except Inst.DoesNotExist:
-            error["error"].append("Model does not exist")
+            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False})
+
+            if not x:
+                error["error"].append("Instance does not exist")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+
         except KeyError:
             error["error"].append("The following values are required: id, x_train, y_train")
 
@@ -446,7 +558,7 @@ class Train(APIView):
             return Response(error)
 
         # Training the model
-        cls = pickle.loads(base64.b64decode(x.pickle))
+        cls = pickle.loads(base64.b64decode(x["pickle"]))
         cls.fit(x_train, y_train)
 
         return Response({"success": "The model was trained successfully"})
@@ -462,9 +574,11 @@ class Test(APIView):
         x_test = []
         y_test = []
         x = ''
+
+        # Validating received data
         try:
             keys = ["id", "x_test", "y_test"]
-            regex = [number, array, array]
+            regex = [text, array, array]
             error = validate(data, keys, regex, error)
 
             x_test = np.array(eval(data['x_test']))
@@ -472,9 +586,14 @@ class Test(APIView):
             if len(x_test) != len(y_test):
                 error["error"].append("error in training data")
 
-            x = Inst.objects.get(user=user, id=int(data["id"]))
-        except Inst.DoesNotExist:
-            error["error"].append("Invalid model id")
+            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False})
+
+            if not x:
+                error["error"].append("Instance does not exist")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid model ID")
+
         except KeyError:
             error["error"].append("The following values are required: id, x_test, y_test")
 
@@ -482,12 +601,11 @@ class Test(APIView):
             return Response(error)
 
         # Testing the model
-        cls = pickle.loads(base64.b64decode(x.pickle))
+        cls = pickle.loads(base64.b64decode(x["pickle"]))
         confidence = cls.score(x_test, y_test)
-
-        x.confidence = confidence
-        x.save()
-
+        
+        res = collection.update_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False},
+        {"$set":{"confidence":confidence}})
         return Response({"confidence": confidence})
 
 
@@ -500,25 +618,32 @@ class Predict(APIView):
         error = {"error": []}
         x_predict = []
         x = ''
+
+        # Validating received data
         try:
             keys = ["id", "x_predict"]
-            regex = [number, array]
+            regex = [text, array]
             error = validate(data, keys, regex, error)
 
             x_predict = np.array(eval(data['x_predict']))
             print(x_predict)
 
-            x = Inst.objects.get(user=user, name=data['name'], version=data['version'])
-        except Inst.DoesNotExist:
-            error["error"].append("Invalid model id")
+            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False})
+
+            if not x:
+                error["error"].append("Instance does not exist")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+
         except KeyError:
             error["error"].append("The following values are required: id, x_predict")
 
         if error["error"]:
             return Response(error)
 
-        # Testing the model
-        cls = pickle.loads(base64.b64decode(x.pickle))
+        # Predicting results
+        cls = pickle.loads(base64.b64decode(x["pickle"]))
         y = cls.predict(x_predict)
 
         return Response({"result": y})
