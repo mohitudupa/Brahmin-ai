@@ -24,20 +24,28 @@ text = r'^.+$'
 boolean = r'^(True)$|(False)$'
 array = r'^\[(.*)*\]$'
 
+
 #mongod connection create a db called "modelmgmt" and a collection called "models" in "modelmgmt" db
 client = pymongo.MongoClient()
-db = client['modelmgmt']
-collection = db['models']
+db = client["modelmgmt"]
+collection = db["models"]
+log = db["log"]
 
-"""
-history = db['history']
-Work in progress
-def log_action(user, action, instance):
-    pass
-"""
+
+def log_instance(action, instance):
+    x = log.find_one({"instance":instance})
+    now = datetime.datetime.now()
+    key = str(now.year) + "-" + str(now.month) + "-" + str(now.day)
+    if key in x:
+        x[key].append(action)        
+    else:
+        x[key] = [action]
+    print(x)
+    log.update_one({"instance":instance}, {"$set": {key: x[key]}})
+
 
 def serialize(x):
-   return({"id": str(x["_id"]), "name": x["name"], "version": x["version"],"date_created": x["date_created"],
+    return({"id": str(x["_id"]), "name": x["name"], "version": x["version"], "date_created": x["date_created"],
                          "last_modified": x["last_modified"], "trash": x["trash"], "private": x["private"],
                          "pickle": x["pickle"],"confidence": x["confidence"], "docs": x["docs"]})
 
@@ -99,6 +107,7 @@ class Register(APIView):
 
         # Generate token for user
         token = Token.objects.create(user=user)
+        token.save()
 
         return Response({
             "status": "User registration successful",
@@ -134,6 +143,68 @@ class GetToken(APIView):
         return Response({"error": ["Invalid username or password"]})
 
 
+class ChangePassword(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        error = {"error": []}
+
+        # Validating post data
+        try:
+
+            keys = ["old_password", "new_password"]
+            regex = [password, password]
+            error = validate(data, keys, regex, error)
+
+        except KeyError:
+            error["error"].append("The following values are required: old_password and new_password")
+
+        if error["error"]:
+            return Response(error)
+        # Auth
+        user = authenticate(request, username=user.username, password=data["old_password"])
+        if user is not None:
+            # Changing the password
+            user.set_password(data["new_password"])
+            user.save()
+            return Response({"Success": "Password changed"})
+        return Response({"error": ["Invalid old password"]})
+
+
+class ChangeToken(APIView):
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request, format=None):
+        data = request.data
+        error = {"error": []}
+
+        # Validating login data
+        try:
+
+            keys = ["password", "username"]
+            regex = [password, name]
+            error = validate(data, keys, regex, error)
+
+        except KeyError:
+            error["error"].append("The following values are required: username and password")
+
+        if error["error"]:
+            return Response(error)
+        # Auth
+        user = authenticate(request, username=data['username'], password=data['password'])
+        if user is not None:
+            # Deleting old token
+            token = Token.objects.get(user=user)
+            token.delete()
+            # Creating new token for user
+            token = Token.objects.create(user=user)
+            token.save()
+            return Response({"token": token.key})
+        return Response({"error": ["Invalid username or password"]})
+
+
 class Clone(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
@@ -149,7 +220,8 @@ class Clone(APIView):
             regex = [text]
             error = validate(data, keys, regex, error)
 
-            x=collection.find_one({"_id":ObjectId(data["id"]),"trash":False})
+            instance = ObjectId(data["id"])
+            x=collection.find_one({"_id": instance, "trash": False})
 
             if not x:
                 error["error"].append("Instance does not exist")
@@ -181,6 +253,17 @@ class Clone(APIView):
                     }
         # Saving new instance
         pid=collection.insert_one(newmodel).inserted_id
+
+        # Creating instance log
+        now = datetime.datetime.now()
+        key = str(now.year) + "-" + str(now.month) + "-" + str(now.day)
+        newlog = {
+                    "instance": pid,
+                    "user": user.id,
+                    key: ["Clone"]
+        }
+        # Saving instance log
+        log.insert_one(newlog).inserted_id
 
         return Response({"Mongo_instance_id":str(pid)})
 
@@ -214,7 +297,7 @@ class Upload(APIView):
         if error["error"]:
             return Response(error)
 
-        #Saving new instance
+        # Creating new instance
         newmodel = {
                     "user":user.id,
                     "name":data["name"],
@@ -227,7 +310,19 @@ class Upload(APIView):
                     "confidence":0.0,
                     "docs":data["docs"]
                     }
+        #Saving new instance
         pid=collection.insert_one(newmodel).inserted_id
+
+        # Creating instance log
+        now = datetime.datetime.now()
+        key = str(now.year) + "-" + str(now.month) + "-" + str(now.day)
+        newlog = {
+                    "instance": pid,
+                    "user": user.id,
+                    key: ["Upload"]
+        }
+        # Saving instance log
+        log.insert_one(newlog).inserted_id
 
         return Response({"Mongo_instance_id":str(pid)})
 
@@ -247,7 +342,8 @@ class Update(APIView):
             regex = [text, text, text, text, boolean, text]
             error = validate(data, keys, regex, error)
 
-            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id})
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id": instance,"user": user.id, "trash": False})
             
             if x:
                 try:
@@ -282,7 +378,10 @@ class Update(APIView):
         })
         x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id})
 
-        return Response(serialize(x))
+        # Logging activity
+        log_instance("Update", instance)
+
+        return Response({"Success": "Model updated successfully"})
 
 
 class Delete(APIView):
@@ -300,7 +399,8 @@ class Delete(APIView):
             regex = [text]
             error = validate(data, keys, regex, error)
 
-            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False})
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id": instance,"user": user.id,"trash": False})
 
             if not x:
                 error["error"].append("Instance does not exist")
@@ -317,6 +417,9 @@ class Delete(APIView):
         # Moving instance into trash
         res = collection.update_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False} ,
         {"$set":{"trash":True,"last_modified":datetime.datetime.now()}})
+
+        # Logging activity
+        log_instance("Delete", instance)
 
         return Response({"Success": "Instance: " + data["id"] + " moved to trash"})
 
@@ -336,7 +439,8 @@ class Restore(APIView):
             regex = [text]
             error = validate(data, keys, regex, error)
 
-            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":True})
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": True})
 
             if not x:
                 error["error"].append("Instance does not exist")
@@ -352,6 +456,9 @@ class Restore(APIView):
         # Restoring instance from trash
         res = collection.update_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":True} ,
         {"$set":{"trash":False,"last_modified":datetime.datetime.now()}})
+
+        # Logging activity
+        log_instance("Restore", instance)
 
         return Response({"Success": "Instance: " + data["id"] + " restored from trash"})
 
@@ -501,7 +608,8 @@ class GetModel(APIView):
             regex = [text]
             error = validate(data, keys, regex, error)
 
-            x = collection.find_one({"_id":ObjectId(data["id"]),"trash":False})
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id": instance, "trash": False})
             
             if not x:
                 error["error"].append("Instance does not exist")
@@ -519,6 +627,43 @@ class GetModel(APIView):
             return Response(error)
 
         return Response(serialize(x))
+
+
+class GetLog(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        error = {"error": []}
+        x = []
+
+        # Validating received data
+        try:
+            keys = ["id"]
+            regex = [text]
+            error = validate(data, keys, regex, error)
+
+            instance = ObjectId(data["id"])
+            x = log.find_one({"instance": instance, "user": user.id})
+            
+            if not x:
+                error["error"].append("Instance does not exist")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+        
+        except KeyError:
+            error["error"].append("The following values are required: id")
+
+        if error["error"]:
+            return Response(error)
+
+        del x["_id"]
+        del x["user"]
+        x["instance"] = str(x["instance"])
+
+        return Response(x)
 
 
 class Train(APIView):
@@ -543,7 +688,8 @@ class Train(APIView):
             if len(x_train) != len(y_train):
                 error["error"].append("Error in training data")
 
-            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False})
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
 
             if not x:
                 error["error"].append("Instance does not exist")
@@ -560,6 +706,9 @@ class Train(APIView):
         # Training the model
         cls = pickle.loads(base64.b64decode(x["pickle"]))
         cls.fit(x_train, y_train)
+
+        # Logging activity
+        log_instance("Train", instance)
 
         return Response({"success": "The model was trained successfully"})
 
@@ -586,7 +735,8 @@ class Test(APIView):
             if len(x_test) != len(y_test):
                 error["error"].append("error in training data")
 
-            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False})
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
 
             if not x:
                 error["error"].append("Instance does not exist")
@@ -604,8 +754,12 @@ class Test(APIView):
         cls = pickle.loads(base64.b64decode(x["pickle"]))
         confidence = cls.score(x_test, y_test)
         
-        res = collection.update_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False},
-        {"$set":{"confidence":confidence}})
+        res = collection.update_one({"_id": ObjectId(data["id"]), "user": user.id, "trash": False},
+        {"$set":{"confidence": confidence}})
+
+        # Logging activity
+        log_instance("Test", instance)
+
         return Response({"confidence": confidence})
 
 
@@ -628,7 +782,8 @@ class Predict(APIView):
             x_predict = np.array(eval(data['x_predict']))
             print(x_predict)
 
-            x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False})
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id":instance, "user":user.id, "trash":False})
 
             if not x:
                 error["error"].append("Instance does not exist")
@@ -645,5 +800,8 @@ class Predict(APIView):
         # Predicting results
         cls = pickle.loads(base64.b64decode(x["pickle"]))
         y = cls.predict(x_predict)
+
+        # Logging activity
+        log_instance("Predict", instance)
 
         return Response({"result": y})
