@@ -1,0 +1,238 @@
+{% extends "model/base.html" %}
+{% load staticfiles %}
+
+{% block style %}
+
+{% endblock %}
+
+
+{% block title %}
+    Brahmin - Home
+{% endblock %}
+
+
+{% block nav %}
+    <li>
+        <a href="#home" class="black-text">Home</a>
+    </li>
+    <li>
+        <a href="#api" class="black-text">Api</a>
+    </li>
+    <li>
+        <a onclick="modal1.open(); M.updateTextFields();" class="btn waves-effect waves-light blue-grey darken-2 ">Login</a>
+    </li>
+{% endblock %}
+
+
+{% block sidenav %}
+    <li>
+        <a href="#home" class="black-text">Home</a>
+    </li>
+    <li>
+        <a href="#api" class="black-text">Api</a>
+    </li>
+    <li>
+        <a onclick="modal1.open(); M.updateTextFields();" class="btn waves-effect waves-light blue-grey darken-3">Login</a>
+    </li>
+{% endblock %}
+
+
+{% block body %}
+
+    <!-- Modal -->
+    <div id="modal1" class="modal">
+        <section id="predict" class="section indigo scrollspy">
+            <div class="container">
+                <div class="row">
+                    <div class="col s12 m12 l12">
+                        <div class="card">
+                            <div class="card-content">
+                                <span class="card-title center">Login</span>
+                                <form action="" class="row" method="GET" id="login">
+                                    {% csrf_token %}
+                                    <div class="input-field">
+                                        <input placeholder="Username" name="username" id="username" type="text" class="validate" required>
+                                        <label for="username">Username</label>
+                                    </div>
+                                    <div class="input-field">
+                                        <input placeholder="Password" name="password" id="password" type="password" class="validate" pattern=".{8,}" required>
+                                        <label for="password">Password</label>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="card-action">
+                                <div class="row">
+                                    <div class="col s6">
+                                        <a class="btn waves-effect waves-light blue-grey darken-3 lighten-1" onclick="validate()">Submit
+                                            <i class="material-icons right">send</i>
+                                        </a>
+                                    </div>
+                                    <div class="col s6">
+                                        <a href="{% url 'model:register' %}" class="right btn waves-effect waves-light blue-grey darken-3 lighten-1">Register</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>        
+        </section>
+    </div>
+
+    <!-- Slider -->
+    <section class="slider">
+        <ul class="slides">
+            <li>
+                <img src="{% static 'model/images/slider4.jpg' %}">
+                <div class="caption center-align">
+                    <h3>Lorem ipsum dolor sit amet.</h3>
+                    <h5 class="light grey-text text-lighten-3 hide-on-small-only">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Eaque, voluptates.</h5>
+                </div>
+            </li>
+            <li>
+                <img src="{% static 'model/images/slider2.jpg' %}">
+                <div class="caption left-align">
+                    <h3>Lorem ipsum dolor sit amet.</h3>
+                    <h5 class="light grey-text text-lighten-3 hide-on-small-only">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Eaque, voluptates.</h5>
+                </div>
+            </li>
+            <li>
+                <img src="{% static 'model/images/slider3.jpg' %}">
+                <div class="caption right-align">
+                    <h3>Lorem ipsum dolor sit amet.</h3>
+                    <h5 class="light grey-text text-lighten-3 hide-on-small-only">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Eaque, voluptates.</h5>
+                </div>
+            </li>
+        </ul>
+    </section>
+    
+
+    <!-- Info 1 -->
+    <section id="home" class="section indigo center scrollspy">
+        <div class="container">
+             <div class="row">
+                <div class="col s12 m4 l4">
+                    <div class="card-panel white">
+                        <span><i class="material-icons large black-text center">insert_chart</i></span><br/>
+                        <span class="black-text flow-text">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Commodi laboriosam laborum quod, atque modi!
+                        </span>
+                    </div>
+                </div>
+                <div class="col s12 m4 l4">
+                    <div class="card-panel white">
+                        <span><i class="material-icons large black-text center">short_text</i></span><br/>
+                        <span class="black-text flow-text">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Maxime rem quam iusto, eveniet blanditiis.
+                        </span>
+                    </div>
+                </div>
+                <div class="col s12 m4 l4">
+                    <div class="card-panel white"> 
+                        <span><i class="material-icons large black-text center">textsms</i></span><br/>
+                        <span class="black-text flow-text">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Modi, quibusdam. Unde facere, cumque impedit.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- Info 2 -->
+    <section class="section parallax-container scrollspy">
+        <div class="parallax"><img src="{% static 'model/images/slider1.jpg' %}"></div>
+        <div class="row">
+            <div class="col s12 m3 l3 hide-on-small-only">
+                
+            </div>
+            <div class="col s12 m9 l9 white-text">
+                <h4 class="card-title center">API</h4><br/>
+                <p class="flow-text container">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Ipsum eligendi minus deleniti maxime sapiente architecto cupiditate ad, blanditiis quos alias sed itaque ea, illum voluptatem quo esse libero obcaecati non!</p><br/>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- Info 3 -->
+    <section id="api" class="section indigo center scrollspy">
+        <div class="container">
+             <div class="row">
+                <div class="col s12 m8 l8 section">
+                        <span><i class="material-icons large white-text center">short_text</i></span><br/>
+                        <span class="white-text light flow-text">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Voluptatibus veniam, vel delectus. Quaerat dolor quas animi aut temporibus voluptatibus distinctio, tempore possimus maxime a ipsa rerum provident iusto cum, ex minus itaque sapiente.</span><br/><br/><br/>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Info 4 -->
+    <section class="section parallax-container scrollspy">
+        <div class="parallax"><img src="{% static 'model/images/slider2.jpg' %}"></div>
+        <div class="row">
+            <div class="col s12 m3 l3 hide-on-small-only">
+                
+            </div>
+            <div class="col s12 m9 l9 white-text">
+                <h4 class="card-title center">Lorem ipsum dolor.</h4><br/>
+                <p class="flow-text container">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Ipsum eligendi minus deleniti maxime sapiente architecto cupiditate ad, blanditiis quos alias sed itaque ea, illum voluptatem quo esse libero obcaecati non!</p><br/>
+            </div>
+        </div>
+    </section>
+
+
+{% endblock %}
+
+
+{% block footer %}
+    <li><a class="grey-text text-lighten-3" href="#!">Link 1</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 2</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 3</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 4</a></li>
+{% endblock %}
+
+{% block script %}
+    <script>
+        // Slider
+        const slider = document.querySelector('.slider');
+        M.Slider.init(slider, {
+            indicators: false,
+            height: 500,
+            transation: 500,
+            intervall: 6000,
+        });
+                
+        // Scrollspy
+        const ss = document.querySelectorAll('.scrollspy');
+        var instances = M.ScrollSpy.init(ss, {});
+
+        // Error
+        {% if errors %}
+            {% for error in errors %}
+                M.toast({html: '{{ error }}'});
+            {% endfor %}
+        {% endif %}
+
+        // Modal
+        const modal = document.querySelectorAll('.modal');
+        instances = M.Modal.init(modal, {});
+
+        // Parallax
+        const parallax = document.querySelectorAll('.parallax');
+        var instances = M.Parallax.init(parallax, {});
+
+        // Modal Open
+        const modal1 = M.Modal.getInstance(document.querySelector("#modal1"));
+
+        // Form Validation
+        function validate(){
+            const username = document.getElementById("username");
+            if(username.value == ""){
+                M.toast({html: 'Username field left empty'});
+                return;
+            }
+            if(document.getElementById("password").value.length < 8){
+                M.toast({html: 'Invalid password'});
+                return;
+            }
+            document.getElementById("login").submit();
+        }
+    </script>
+{% endblock %}
