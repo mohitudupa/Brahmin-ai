@@ -79,7 +79,7 @@
                                                     <label for="cpassword">Confirm Password</label>
                                                 </div>
                                             </div>
-                                            <button class="btn waves-effect waves-light" type="submit" name="submit" onclick="validate()">Submit
+                                            <button class="btn waves-effect waves-light" type="submit" name="submit" onclick="return validate()">Submit
                                                 <i class="material-icons right">send</i>
                                             </button>
                                         </form>
@@ -136,7 +136,7 @@
         function validate(){
             if(document.getElementById("password").value != document.getElementById("cpassword").value){
                 M.toast({html: 'Password mismatch'});
-                return;
+                return false;
             }
             document.getElementById("register").submit();
         }
