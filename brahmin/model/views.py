@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.messages import get_messages
 import re
@@ -51,18 +52,25 @@ def validate(data, keys, regex, types, error):
 # Home page view
 def home(request, *args, **kwargs):
     if request.method == "GET":
-        return render(request, 'model/home.html', {"errors": []})
+        logged_in = False
+        if request.user.is_authenticated:
+            logged_in = True
+        return render(request, "model/home.html", {"errors": [], "logged_in": logged_in})
 
 
 # Login page view
-def login(request, *args, **kwargs):
+def user_login(request, *args, **kwargs):
     if request.method == "GET":
+        if request.user.is_authenticated:
+            return redirect("model:dashboard")
+
         errors = []
         storage = get_messages(request)
         for message in storage:
             errors.append(str(message))
 
-        return render(request, 'model/login.html', {"errors": errors})
+        return render(request, "model/login.html", {"errors": errors})
+
 
 
 # Login form submittion view
@@ -70,7 +78,8 @@ def login_form(request, *args, **kwargs):
     if request.method == "GET":
         return redirect("model:home")
 
-    if request.method == "POST":    
+    if request.method == "POST":
+
         data = request.POST
         error = []
 
@@ -80,7 +89,7 @@ def login_form(request, *args, **kwargs):
             types = [str, str]
             error = validate(data, keys, regex, types, error)   
 
-            username = User.objects.get(email=data['email'])
+            username = User.objects.get(email=data["email"])
 
         except User.DoesNotExist:
             messages.info(request, "Incorrect email or password")
@@ -90,8 +99,8 @@ def login_form(request, *args, **kwargs):
             return redirect("model:login")
 
 
-        user = authenticate(request, username=username, password=data['password'])
-        
+        user = authenticate(request, username=username, password=data["password"])
+
         if user is not None:
             login(request, user)
             return redirect("model:dashboard")
@@ -105,13 +114,13 @@ def user_logout(request, *args, **kwargs):
     if request.method == "GET":
         if request.user.is_authenticated:
             logout(request)
-        return redirect('model:home')
+        return redirect("model:home")
 
 
 # Registration page view
 def register(request, *args, **kwargs):
     if request.method == "GET":
-        return render(request, 'model/register.html', {"error": False})
+        return render(request, "model/register.html", {"error": False})
 
 
 # Registration form submittion view
@@ -121,6 +130,7 @@ def register_form(request, *args, **kwargs):
 
 
 # User dashboard view
+@login_required(login_url="model:login")
 def dashboard(request, *args, **kwargs):
-    if request.method == "GET":    
-        return render(request, 'model/dashboard.html', {"error": False})
+    if request.method == "GET": 
+        return render(request, "model/dashboard.html", {"error": False})

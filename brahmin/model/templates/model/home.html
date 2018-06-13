@@ -18,9 +18,15 @@
     <li>
         <a href="#api" class="black-text">Api</a>
     </li>
-    <li>
-        <a onclick="modal1.open(); M.updateTextFields();" class="btn waves-effect waves-light blue-grey darken-2 ">Login</a>
-    </li>
+    {% if logged_in %}
+        <li>
+            <a href="{% url 'model:dashboard' %}" class="btn waves-effect waves-light blue-grey darken-2 ">Login</a>
+        </li>
+    {% else %}
+        <li>
+            <a onclick="modal1.open(); M.updateTextFields();" class="btn waves-effect waves-light blue-grey darken-2 ">Login</a>
+        </li>
+    {% endif %}
 {% endblock %}
 
 
@@ -31,9 +37,15 @@
     <li>
         <a href="#api" class="black-text">Api</a>
     </li>
-    <li>
-        <a onclick="modal1.open(); M.updateTextFields();" class="btn waves-effect waves-light blue-grey darken-3">Login</a>
-    </li>
+    {% if logged_in %}
+        <li>
+            <a href="{% url 'model:dashboard' %}" class="btn waves-effect waves-light blue-grey darken-2 ">Login</a>
+        </li>
+    {% else %}
+        <li>
+            <a onclick="modal1.open(); M.updateTextFields();" class="btn waves-effect waves-light blue-grey darken-2 ">Login</a>
+        </li>
+    {% endif %}
 {% endblock %}
 
 
