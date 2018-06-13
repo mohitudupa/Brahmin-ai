@@ -37,27 +37,8 @@
                                 <span class="card-title">Register</span>
                                 <div class="row">
                                     <div class="col s12 m12 l12">
-                                        <form action="" method="GET" class="col s12" id="register">
+                                        <form action="{% url 'model:login_form' %}" method="POST" class="col s12" id="register">
                                             {% csrf_token %}
-                                            <div class="row">
-                                                <div class="input-field col s12 m6 l6">
-                                                    <i class="material-icons prefix">mode_edit</i>
-                                                    <input id="fname" name="first_name" type="text" class="validate" required>
-                                                    <label for="fname">First Name</label>
-                                                </div>
-                                                <div class="input-field col s12 m6 l6">
-                                                    <i class="material-icons prefix">mode_edit</i>
-                                                    <input id="lname" name="last_name" type="text" class="validate" required>
-                                                    <label for="lname">Last Name</label>
-                                                </div>
-                                            </div>
-                                            <div class="row">
-                                                <div class="input-field col s12">
-                                                    <i class="material-icons prefix">person</i>
-                                                    <input id="uname" name="user_name" type="text" class="validate" required>
-                                                    <label for="uname">User Name</label>
-                                                </div>
-                                            </div>
                                             <div class="row">
                                                 <div class="input-field col s12">
                                                     <i class="material-icons prefix">local_post_office</i>
@@ -72,14 +53,7 @@
                                                     <label for="password">Password</label>
                                                 </div>
                                             </div>
-                                            <div class="row">
-                                                <div class="input-field col s12">
-                                                    <i class="material-icons prefix">lock</i>
-                                                    <input id="cpassword" name="conf_password" type="password" class="validate" pattern=".{8,}" required>
-                                                    <label for="cpassword">Confirm Password</label>
-                                                </div>
-                                            </div>
-                                            <button class="btn waves-effect waves-light" type="submit" name="submit" id="form_submit">Submit
+                                            <button class="btn waves-effect waves-light" type="submit" name="submit">Submit
                                                 <i class="material-icons right">send</i>
                                             </button>
                                         </form>
@@ -132,14 +106,6 @@
         // Parallax
         const parallax = document.querySelectorAll('.parallax');
         var instances = M.Parallax.init(parallax, {});
-
-        // Form validation
-        document.getElementById("form_submit").addEventListener("click", function(event){
-            if(document.getElementById("password").value != document.getElementById("cpassword").value){
-                M.toast({html: 'Password mismatch'});
-                event.preventDefault()
-            }
-        });
 
     </script>
 {% endblock %}

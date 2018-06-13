@@ -48,11 +48,11 @@
                         <div class="card">
                             <div class="card-content">
                                 <span class="card-title center">Login</span>
-                                <form action="" class="row" method="GET" id="login">
+                                <form action="{% url 'model:login_form' %}" class="row" method="POST" id="login">
                                     {% csrf_token %}
                                     <div class="input-field">
-                                        <input placeholder="Username" name="username" id="username" type="text" class="validate" required>
-                                        <label for="username">Username</label>
+                                        <input placeholder="Email" name="email" id="email" type="email" class="validate" required>
+                                        <label for="email">Email</label>
                                     </div>
                                     <div class="input-field">
                                         <input placeholder="Password" name="password" id="password" type="password" class="validate" pattern=".{8,}" required>
@@ -203,13 +203,6 @@
         const ss = document.querySelectorAll('.scrollspy');
         var instances = M.ScrollSpy.init(ss, {});
 
-        // Error
-        {% if errors %}
-            {% for error in errors %}
-                M.toast({html: '{{ error }}'});
-            {% endfor %}
-        {% endif %}
-
         // Modal
         const modal = document.querySelectorAll('.modal');
         instances = M.Modal.init(modal, {});
@@ -223,8 +216,8 @@
 
         // Form Validation
         function validate(){
-            const username = document.getElementById("username");
-            if(username.value == ""){
+            const email = document.getElementById("email");
+            if(email.value == ""){
                 M.toast({html: 'Username field left empty'});
                 return;
             }

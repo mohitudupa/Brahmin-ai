@@ -12,7 +12,7 @@
 
 
         {% block style %}
-
+            
         {% endblock %}
         
         <title>
@@ -89,6 +89,13 @@
             //Sidenav
             const sideNav = document.querySelector('.sidenav');
             M.Sidenav.init(sideNav, {});
+
+            // Error
+            {% if errors %}
+                {% for error in errors %}
+                    M.toast({html: '{{ error }}'});
+                {% endfor %}
+            {% endif %}
         </script>
 
         {% block script %}

@@ -9,6 +9,8 @@ import re
 import datetime
 from sklearn import *
 import numpy as np
+import pandas as pd
+from io import StringIO
 import base64
 import pickle
 import pymongo
@@ -17,12 +19,13 @@ import bson
 
 
 number = r'^[0-9]+$'
-name = r'^[a-zA-Z\' ]+$'
+name = r'^[a-zA-Z\' -]+$'
 email = r'^.+@.+\..+$'
 password = r'^.{8}'
 text = r'^.+$'
 boolean = r'^(True)$|(False)$'
 array = r'^\[(.*)*\]$'
+date_format = r'^[0-3][0-9]-[0-1][0-9]-[0-9]{4}$'
 
 
 #mongod connection create a db called "modelmgmt" and a collection called "models" in "modelmgmt" db
@@ -35,25 +38,22 @@ log = db["log"]
 def log_instance(action, instance):
     x = log.find_one({"instance":instance})
     now = datetime.datetime.now()
-    key = str(now.year) + "-" + str(now.month) + "-" + str(now.day)
-    if key in x:
-        x[key].append(action)        
-    else:
-        x[key] = [action]
-    print(x)
+    key = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
+    if key not in x:
+        x[key] = []        
+    x[key].append(action)
     log.update_one({"instance":instance}, {"$set": {key: x[key]}})
 
 
-def serialize(x):
-    return({"id": str(x["_id"]), "name": x["name"], "version": x["version"], "date_created": x["date_created"],
-                         "last_modified": x["last_modified"], "trash": x["trash"], "private": x["private"],
-                         "pickle": x["pickle"],"confidence": x["confidence"], "docs": x["docs"]})
-
-
-def validate(data, keys, regex, error):
+def validate(data, keys, regex, types, error):
     for i in range(len(keys)):
-        if not bool(re.match(regex[i], data[keys[i]])):
-            error["error"].append(keys[i] + " invalid input")
+        if isinstance(data[keys[i]], types[i]):
+            if not bool(re.match(regex[i], str(data[keys[i]]))):
+                error["error"].append("Invalid value for " + keys[i])
+                raise AssertionError()
+        else:
+            error["error"].append("Invalid type for " + keys[i])
+            raise AssertionError()
     return error
 
 
@@ -76,7 +76,8 @@ class Register(APIView):
 
             keys = ["first_name", "last_name", "email", "password", "username"]
             regex = [name, name, email, password, text]
-            error = validate(data, keys, regex, error)
+            types = [str, str, str, str, str]
+            error = validate(data, keys, regex, types, error)
 
             # Checking if username and email has already been taken
 
@@ -95,6 +96,8 @@ class Register(APIView):
         except KeyError:
             error["error"].append("The following values are required: first_name, last_name, username, "
                                   "password and email")
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)
@@ -129,10 +132,14 @@ class GetToken(APIView):
 
             keys = ["password", "username"]
             regex = [password, name]
-            error = validate(data, keys, regex, error)
+            types = [str, str]
+            error = validate(data, keys, regex, types, error)
 
         except KeyError:
             error["error"].append("The following values are required: username and password")
+
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)
@@ -156,10 +163,14 @@ class ChangePassword(APIView):
 
             keys = ["old_password", "new_password"]
             regex = [password, password]
-            error = validate(data, keys, regex, error)
+            types = [str, str]
+            error = validate(data, keys, regex, types, error)
 
         except KeyError:
             error["error"].append("The following values are required: old_password and new_password")
+
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)
@@ -185,10 +196,14 @@ class ChangeToken(APIView):
 
             keys = ["password", "username"]
             regex = [password, name]
-            error = validate(data, keys, regex, error)
+            types = [str, str]
+            error = validate(data, keys, regex, types, error)
 
         except KeyError:
             error["error"].append("The following values are required: username and password")
+
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)
@@ -218,7 +233,8 @@ class Clone(APIView):
         try:
             keys = ["id"]
             regex = [text]
-            error = validate(data, keys, regex, error)
+            types = [str]
+            error = validate(data, keys, regex, types, error)
 
             instance = ObjectId(data["id"])
             x=collection.find_one({"_id": instance, "trash": False})
@@ -234,6 +250,9 @@ class Clone(APIView):
 
         except KeyError:
             error["error"].append("The following values are required: id")
+
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)
@@ -256,7 +275,7 @@ class Clone(APIView):
 
         # Creating instance log
         now = datetime.datetime.now()
-        key = str(now.year) + "-" + str(now.month) + "-" + str(now.day)
+        key = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
         newlog = {
                     "instance": pid,
                     "user": user.id,
@@ -281,7 +300,8 @@ class Upload(APIView):
         try:
             keys = ["name", "version", "pickle", "private", "docs"]
             regex = [text, text, text, boolean, text]
-            error = validate(data, keys, regex, error)
+            types = [str, str, str, bool, str]
+            error = validate(data, keys, regex, types, error)
 
             try:
                 obj = pickle.loads(base64.b64decode(request.data['pickle']))
@@ -294,6 +314,9 @@ class Upload(APIView):
         except KeyError:
             error["error"].append("The following values are required: name, version, pickle, private and docs")
 
+        except AssertionError:
+            pass
+
         if error["error"]:
             return Response(error)
 
@@ -304,7 +327,7 @@ class Upload(APIView):
                     "version":data["version"],
                     "date_created":datetime.datetime.now(),
                     "last_modified":datetime.datetime.now(),
-                    "private":eval(data["private"]),
+                    "private":data["private"],
                     "trash":False,
                     "pickle":data["pickle"],
                     "confidence":0.0,
@@ -315,7 +338,7 @@ class Upload(APIView):
 
         # Creating instance log
         now = datetime.datetime.now()
-        key = str(now.year) + "-" + str(now.month) + "-" + str(now.day)
+        key = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
         newlog = {
                     "instance": pid,
                     "user": user.id,
@@ -340,7 +363,8 @@ class Update(APIView):
         try:
             keys = ["id", "new_name", "new_version", "new_pickle", "new_private", "new_docs"]
             regex = [text, text, text, text, boolean, text]
-            error = validate(data, keys, regex, error)
+            types = [str, str, str, str, bool, str]
+            error = validate(data, keys, regex, types, error)
 
             instance = ObjectId(data["id"])
             x = collection.find_one({"_id": instance,"user": user.id, "trash": False})
@@ -362,6 +386,8 @@ class Update(APIView):
         except KeyError:
             error["error"].append("The following values are required: id, new_name, new_version, "
                                   "new_pickle, new_private and new_docs")
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)
@@ -372,7 +398,7 @@ class Update(APIView):
             "name":data["new_name"],
             "version":data["new_version"],
             "pickle":data["new_pickle"],
-            "private":eval(data["new_private"]),
+            "private":data["new_private"],
             "last_modified":datetime.datetime.now(),
             "docs":data["new_docs"]}
         })
@@ -397,7 +423,8 @@ class Delete(APIView):
         try:
             keys = ["id"]
             regex = [text]
-            error = validate(data, keys, regex, error)
+            types = [str]
+            error = validate(data, keys, regex, types, error)
 
             instance = ObjectId(data["id"])
             x = collection.find_one({"_id": instance,"user": user.id,"trash": False})
@@ -410,6 +437,9 @@ class Delete(APIView):
 
         except KeyError:
             error["error"].append("The following values are required: id")
+
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)
@@ -437,7 +467,8 @@ class Restore(APIView):
         try:
             keys = ["id"]
             regex = [text]
-            error = validate(data, keys, regex, error)
+            types = [str]
+            error = validate(data, keys, regex, types, error)
 
             instance = ObjectId(data["id"])
             x = collection.find_one({"_id": instance, "user": user.id, "trash": True})
@@ -447,8 +478,12 @@ class Restore(APIView):
 
         except bson.errors.InvalidId:
             error["error"].append("Invalid instance ID")
+        
         except KeyError:
             error["error"].append("The following values are required: id")
+
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)
@@ -476,27 +511,32 @@ class GetDetails(APIView):
         try:
             keys = ["trash"]
             regex = [boolean]
-            error = validate(data, keys, regex, error)
-
-            x=collection.find({"user":user.id,"trash":eval(data["trash"])})
-
-            # Preparing return json data
-            for i in x:
-                if i["name"] not in final:
-                    final[i["name"]] = {}
-                if i["version"] not in final[i["name"]]:
-                    final[i["name"]][i["version"]] = []
-                final[i["name"]][i["version"]].append({
-                    "id": str(i["_id"]),
-                    "date_created": i["date_created"],
-                    "confidence": i["confidence"]
-                })
+            types = [bool]
+            error = validate(data, keys, regex, types, error)
 
         except KeyError:
             error["error"].append("The following values are required: trash")
 
+        except AssertionError:
+            pass
+
         if error["error"]:
             return Response(error)
+
+        # Fetching instance data
+        x=collection.find({"user":user.id,"trash":data["trash"]})
+
+        # Preparing return json data
+        for i in x:
+            if i["name"] not in final:
+                final[i["name"]] = {}
+            if i["version"] not in final[i["name"]]:
+                final[i["name"]][i["version"]] = []
+            final[i["name"]][i["version"]].append({
+                "id": str(i["_id"]),
+                "date_created": i["date_created"],
+                "confidence": i["confidence"]
+            })
 
         return Response(final)
 
@@ -514,20 +554,25 @@ class GetNames(APIView):
         try:
             keys = ["trash"]
             regex = [boolean]
-            error = validate(data, keys, regex, error)
-
-            x = collection.find({"user":user.id,"trash":eval(data["trash"])})
-
-            # Preparing return json data
-            for i in x:
-                final["names"].add(i["name"])
-            final["names"] = list(final["names"])
+            types = [bool]
+            error = validate(data, keys, regex, types, error)
 
         except KeyError:
             error["error"].append("The following values are required: trash")
 
+        except AssertionError:
+            pass
+
         if error["error"]:
             return Response(error)
+
+        # Fetching instance data
+        x = collection.find({"user":user.id,"trash":data["trash"]})
+
+        # Preparing return json data
+        for i in x:
+            final["names"].add(i["name"])
+        final["names"] = list(final["names"])
 
         return Response(final)
 
@@ -545,20 +590,25 @@ class GetVersions(APIView):
         try:
             keys = ["name", "trash"]
             regex = [text, boolean]
-            error = validate(data, keys, regex, error)
-
-            x=collection.find({"user":user.id,"name":data["name"],"trash":eval(data["trash"])})
-
-            # Preparing return json data
-            for i in x:
-                final["versions"].add(i["version"])
-            final["versions"] = list(final["versions"])
+            types = [str, bool]
+            error = validate(data, keys, regex, types, error)
 
         except KeyError:
             error["error"].append("The following values are required: name, trash")
 
+        except AssertionError:
+            pass
+
         if error["error"]:
             return Response(error)
+
+        # Fetching instance data
+        x=collection.find({"user":user.id,"name":data["name"],"trash":data["trash"]})
+
+        # Preparing return json data
+        for i in x:
+            final["versions"].add(i["version"])
+        final["versions"] = list(final["versions"])
 
         return Response(final)
 
@@ -576,19 +626,24 @@ class GetInstances(APIView):
         try:
             keys = ["name", "version", "trash"]
             regex = [text, text, boolean]
-            error = validate(data, keys, regex, error)
-            
-            x = collection.find({"user":user.id,"name":data["name"],"version":data["version"],"trash":eval(data["trash"])})
-
-            # Preparing return json data
-            for i in x:
-                final["id"].append(str(i["_id"]))
+            types = [str, str, bool]
+            error = validate(data, keys, regex, types, error)
 
         except KeyError:
             error["error"].append("The following values are required: name, version, trash")
 
+        except AssertionError:
+            pass
+
         if error["error"]:
             return Response(error)
+
+        # Fetching Instance data
+        x = collection.find({"user":user.id,"name":data["name"],"version":data["version"],"trash":data["trash"]})
+
+        # Preparing return json data
+        for i in x:
+            final["id"].append(str(i["_id"]))
 
         return Response(final)
 
@@ -606,9 +661,11 @@ class GetModel(APIView):
         try:
             keys = ["id"]
             regex = [text]
-            error = validate(data, keys, regex, error)
+            types = [str]
+            error = validate(data, keys, regex, types, error)
 
             instance = ObjectId(data["id"])
+            # Fetching instance data
             x = collection.find_one({"_id": instance, "trash": False})
             
             if not x:
@@ -623,10 +680,16 @@ class GetModel(APIView):
         except KeyError:
             error["error"].append("The following values are required: id")
 
+        except AssertionError:
+            pass
+
         if error["error"]:
             return Response(error)
 
-        return Response(serialize(x))
+        del x["user"]
+        x["id"] = str(x["_id"])
+        del x["_id"]
+        return Response(x)
 
 
 class GetLog(APIView):
@@ -642,9 +705,11 @@ class GetLog(APIView):
         try:
             keys = ["id"]
             regex = [text]
-            error = validate(data, keys, regex, error)
+            types = [str]
+            error = validate(data, keys, regex, types, error)
 
             instance = ObjectId(data["id"])
+            # Fetching logs
             x = log.find_one({"instance": instance, "user": user.id})
             
             if not x:
@@ -656,6 +721,9 @@ class GetLog(APIView):
         except KeyError:
             error["error"].append("The following values are required: id")
 
+        except AssertionError:
+            pass
+
         if error["error"]:
             return Response(error)
 
@@ -664,6 +732,64 @@ class GetLog(APIView):
         x["instance"] = str(x["instance"])
 
         return Response(x)
+
+
+class GetUserLog(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        
+        # Fetching logs
+        x = log.find({"user": user.id})
+
+        rdata = {"user": user.username, "activities": []}
+        for obj in x:
+            del obj["user"]
+            del obj["_id"]
+            obj["instance"]=str(obj["instance"])
+            rdata["activities"].append(obj)
+        return Response(rdata)
+
+
+class GetDateLog(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        error = {"error": []}
+
+        # Validating received data
+        try:
+            keys = ["date"]
+            regex = [date_format]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
+
+            day, month, year = data["date"].split("-")
+            date = datetime.datetime(int(year), int(month), int(day))
+
+        except KeyError:
+            error["error"].append("The following values are required: date(dd-mm-yyyy)")
+
+        except ValueError:
+            error["error"].append("Invalid date")
+
+        except AssertionError:
+            pass
+
+        if error["error"]:
+            return Response(error)
+
+        # Fetching logs
+        x = log.find({"user": user.id, data["date"]: {"$exists" : True}})
+
+        rdata = {"date": date, "activities": {}}
+        for obj in x:
+            rdata["activities"][str(obj["instance"])]=obj[data["date"]]
+        return Response(rdata)
 
 
 class Train(APIView):
@@ -679,14 +805,27 @@ class Train(APIView):
 
         # Validating received data
         try:
-            keys = ["id", "x_train", "y_train"]
-            regex = [text, array, array]
-            error = validate(data, keys, regex, error)
+            keys = ["id"]
+            regex = [text]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
 
-            x_train = np.array(eval(data['x_train']))
-            y_train = np.array(eval(data['y_train']))
-            if len(x_train) != len(y_train):
-                error["error"].append("Error in training data")
+            text_data = b""
+            for chunk in request.data['x_train'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+
+            x_train = np.array(pd.read_csv(StringIO(text_data)))
+
+            text_data = b""
+            for chunk in request.data['y_train'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+
+            y_train = np.array(pd.read_csv(StringIO(text_data)))[0]
+
+            # if len(x_train) != len(y_train):
+            #     error["error"].append("Error in training data")
 
             instance = ObjectId(data["id"])
             x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
@@ -699,6 +838,15 @@ class Train(APIView):
 
         except KeyError:
             error["error"].append("The following values are required: id, x_train, y_train")
+
+        except UnicodeDecodeError:
+            error["error"].append("Invalid text encoding")
+
+        except AttributeError:
+            error["error"].append("A text file must be uploaded")
+        
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)
@@ -726,14 +874,27 @@ class Test(APIView):
 
         # Validating received data
         try:
-            keys = ["id", "x_test", "y_test"]
-            regex = [text, array, array]
-            error = validate(data, keys, regex, error)
+            keys = ["id"]
+            regex = [text]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
 
-            x_test = np.array(eval(data['x_test']))
-            y_test = np.array(eval(data['y_test']))
-            if len(x_test) != len(y_test):
-                error["error"].append("error in training data")
+            text_data = b""
+            for chunk in request.data['x_test'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+
+            x_test = np.array(pd.read_csv(StringIO(text_data)))
+
+            text_data = b""
+            for chunk in request.data['y_test'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+
+            y_test = np.array(pd.read_csv(StringIO(text_data)))[0]
+
+            # if len(x_test) != len(y_test):
+            #     error["error"].append("error in training data")
 
             instance = ObjectId(data["id"])
             x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
@@ -746,6 +907,15 @@ class Test(APIView):
 
         except KeyError:
             error["error"].append("The following values are required: id, x_test, y_test")
+
+        except UnicodeDecodeError:
+            error["error"].append("Invalid text encoding")
+
+        except AttributeError:
+            error["error"].append("A text file must be uploaded")
+        
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)
@@ -775,12 +945,17 @@ class Predict(APIView):
 
         # Validating received data
         try:
-            keys = ["id", "x_predict"]
-            regex = [text, array]
-            error = validate(data, keys, regex, error)
+            keys = ["id"]
+            regex = [text]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
 
-            x_predict = np.array(eval(data['x_predict']))
-            print(x_predict)
+            text_data = b""
+            for chunk in request.data['x_predict'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+
+            x_predict = np.array(pd.read_csv(StringIO(text_data)))
 
             instance = ObjectId(data["id"])
             x = collection.find_one({"_id":instance, "user":user.id, "trash":False})
@@ -793,6 +968,15 @@ class Predict(APIView):
 
         except KeyError:
             error["error"].append("The following values are required: id, x_predict")
+
+        except UnicodeDecodeError:
+            error["error"].append("Invalid text encoding")
+
+        except AttributeError:
+            error["error"].append("A text file must be uploaded")
+        
+        except AssertionError:
+            pass
 
         if error["error"]:
             return Response(error)

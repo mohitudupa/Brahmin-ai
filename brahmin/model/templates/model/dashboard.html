@@ -1,0 +1,234 @@
+{% extends "model/base.html" %}
+{% load staticfiles %}
+
+{% block style %}
+<style>  
+    .flex-container {
+        display: -webkit-flex;
+        display: flex;  
+        -webkit-flex-flow: row wrap;
+        flex-flow: row wrap;
+        text-align: center;
+    }
+
+    .flex-container > * {
+        padding: 15px;
+        -webkit-flex: 1 100%;
+        flex: 1 100%;
+    }
+
+    .modelcards {
+        text-align: left;
+    }
+
+    .profile {background:#eee;}
+
+    @media all and (min-width: 768px) {
+        .profile {text-align:left;-webkit-flex: 1 auto;flex:1 auto;-webkit-order:1;order:1;}
+        .modelcards {-webkit-flex:5 0px;flex:5 0px;-webkit-order:2;order:2;} 
+    }
+
+     body {
+       background-image: "https://images.pexels.com/photos/114979/pexels-photo-114979.jpeg?cs=srgb&dl=hd-wallpaper-mountain-range-mountains-114979.jpg&fm=jpg";
+       background-color: #212121  ; 
+}  
+</style>
+{% endblock %}
+
+
+{% block title %}
+    Brahmin - User
+{% endblock %}
+
+
+{% block nav %}
+    <li>
+        <a href="{% url 'model:home' %}" class="black-text">Home</a>
+    </li>
+    <li>
+        <a href="{% url 'model:logout' %}" class="black-text">logout</a>
+    </li>
+{% endblock %}
+
+
+{% block sidenav %}
+    <li>
+        <a href="{% url 'model:home' %}" class="black-text">Home</a>
+    </li>
+    <li>
+        <a href="{% url 'model:logout' %}" class="black-text">logout</a>
+    </li>
+{% endblock %}
+
+
+{% block body %}
+<div class="flex-container">
+
+        <div class="profile"  style="flex-basis: 50px">
+         
+           <div class="card-panel grey lighten-5 z-depth-1">
+                <div class="col s1 m1">
+                    <img src="http://www.american.edu/uploads/profiles/large/chris_palmer_profile_11.jpg" alt="" class="circle responsive-img">
+                </div>
+                <div class="col s1 m1">
+                <span class="teal-text">
+                    User profile details contails informarion about the user .... <br>
+                </span>
+                <button class = "btn waves-effect waves-light blue-grey ">
+                    <i class = "small material-icons ">file_upload</i></button>
+                <button class = "btn waves-effect waves-light blue-grey ">
+                    <i class = "small material-icons ">sync</i></button>   
+                </div> 
+            </div>
+        </div>
+
+        
+
+
+        <div class="modelcards">
+        <div class = "row">
+
+          <div class = "col s12 m4" >
+            <div class="card-panel  white ">
+              <a href="#"> 
+               <div class = "card-content">   
+               <span class="card-title black-text">Model 1</span>               
+                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
+               </div>
+              </a> 
+               
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">delete</i></button>
+               </div>         
+                  
+              </div>
+           </div> 
+       
+         
+         <div class = "col s12 m4" >
+            <div class="card-panel white">
+              <a href="#"> 
+               <div class = "card-content">   
+               <span class="card-title black-text">Model 1</span>               
+                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
+               </div>
+              </a> 
+               
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">delete</i></button>
+               </div>         
+                  
+              </div>
+           </div> 
+      
+
+
+
+        <div class = "col s12 m4" >
+            <div class="card-panel white">
+              <a href="#"> 
+               <div class = "card-content">   
+               <span class="card-title black-text">Model 1</span>               
+                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
+               </div>
+              </a> 
+               
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">delete</i></button>
+               </div>         
+                  
+              </div>
+           </div> 
+       
+
+       </div>
+
+      <div class="row">
+
+         <div class = "col s12 m4" >
+            <div class="card-panel white">
+              <a href="#"> 
+               <div class = "card-content">   
+               <span class="card-title black-text">Model 1</span>               
+                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
+               </div>
+              </a> 
+               
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">delete</i></button>
+               </div>         
+                  
+              </div>
+           </div> 
+
+
+         <div class = "col s12 m4" >
+            <div class="card-panel white">
+              <a href="#"> 
+               <div class = "card-content">   
+               <span class="card-title black-text">Model 1</span>               
+                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
+               </div>
+              </a> 
+               
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">delete</i></button>
+               </div>         
+                  
+              </div>
+           </div> 
+           
+
+         <div class = "col s12 m4" >
+            <div class="card-panel white">
+              <a href="#"> 
+               <div class = "card-content">   
+               <span class="card-title black-text">Model 1</span>               
+                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
+               </div>
+              </a> 
+               
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">delete</i></button>
+               </div>         
+                  
+              </div>
+           </div>     
+
+
+
+
+</div>
+
+      </div> 
+    </div>
+
+      </div>
+
+{% endblock %}
+
+
+
+
+{% block footer %}
+    <li><a class="grey-text text-lighten-3" href="#!">Link 1</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 2</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 3</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 4</a></li>
+{% endblock %}
+
+
+
+{% block scripts %}
+
+<script type = "text/javascript"
+         src = "https://code.jquery.com/jquery-2.1.1.min.js"></script>  
+
+
+{% endblock%}
