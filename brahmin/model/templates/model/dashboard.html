@@ -2,10 +2,10 @@
 {% load staticfiles %}
 
 {% block style %}
-<style>  
+<style>
     .flex-container {
         display: -webkit-flex;
-        display: flex;  
+        display: flex;
         -webkit-flex-flow: row wrap;
         flex-flow: row wrap;
         text-align: center;
@@ -25,13 +25,13 @@
 
     @media all and (min-width: 768px) {
         .profile {text-align:left;-webkit-flex: 1 auto;flex:1 auto;-webkit-order:1;order:1;}
-        .modelcards {-webkit-flex:5 0px;flex:5 0px;-webkit-order:2;order:2;} 
+        .modelcards {-webkit-flex:5 0px;flex:5 0px;-webkit-order:2;order:2;}
     }
 
      body {
        background-image: "https://images.pexels.com/photos/114979/pexels-photo-114979.jpeg?cs=srgb&dl=hd-wallpaper-mountain-range-mountains-114979.jpg&fm=jpg";
-       background-color: #212121  ; 
-}  
+       background-color: #212121  ;
+}
 </style>
 {% endblock %}
 
@@ -65,7 +65,7 @@
 <div class="flex-container">
 
         <div class="profile"  style="flex-basis: 50px">
-         
+
            <div class="card-panel grey lighten-5 z-depth-1">
                 <div class="col s1 m1">
                     <img src="http://www.american.edu/uploads/profiles/large/chris_palmer_profile_11.jpg" alt="" class="circle responsive-img">
@@ -77,140 +77,159 @@
                 <button class = "btn waves-effect waves-light blue-grey ">
                     <i class = "small material-icons ">file_upload</i></button>
                 <button class = "btn waves-effect waves-light blue-grey ">
-                    <i class = "small material-icons ">sync</i></button>   
-                </div> 
+                    <i class = "small material-icons ">sync</i></button>
+                </div>
             </div>
         </div>
 
-        
+
 
 
         <div class="modelcards">
+        <div class="albums-container container-fluid">
         <div class = "row">
-
+          {% if final %}
+            {% for model,modeldetail in final.items %}
           <div class = "col s12 m4" >
             <div class="card-panel  white ">
-              <a href="#"> 
-               <div class = "card-content">   
-               <span class="card-title black-text">Model 1</span>               
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">{{ model }}</span>
                   <p class="black-text">a model containing a detailed view ,click this to open model</p>
+                    <ol class = "green-text" style="list-style-type:upper-roman;">
+                      <li>
+                        versions = {{ modeldetail.0 }}
+                      </li>
+                      <li>
+                        number of versions = {{ modeldetail.1 }}
+                      </li>
+                      <li>
+                          number of instances = {{ modeldetail.2 }}
+                      </li>
+                    </ol>
                </div>
-              </a> 
-               
+              </a>
+
                <div class = "card-action">
                   <button class = "btn waves-effect waves-light blue-grey ">
                      <i class = "material-icons">delete</i></button>
-               </div>         
-                  
+               </div>
+
               </div>
-           </div> 
-       
-         
+           </div>
+           {% cycle '' '' '' '' '' '<div class="clearfix visible-model"></div>' %}
+           {% endfor %}
+         </div>
+           {% else %}
+         <h3>No models</h3>
+       {% endif %}
+       </div>
+     </div>
+   </div>
+<!--
          <div class = "col s12 m4" >
             <div class="card-panel white">
-              <a href="#"> 
-               <div class = "card-content">   
-               <span class="card-title black-text">Model 1</span>               
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">Model 1</span>
                   <p class="black-text">a model containing a detailed view ,click this to open model</p>
                </div>
-              </a> 
-               
+              </a>
+
                <div class = "card-action">
                   <button class = "btn waves-effect waves-light blue-grey ">
                      <i class = "material-icons">delete</i></button>
-               </div>         
-                  
+               </div>
+
               </div>
-           </div> 
-      
+           </div>
+
 
 
 
         <div class = "col s12 m4" >
             <div class="card-panel white">
-              <a href="#"> 
-               <div class = "card-content">   
-               <span class="card-title black-text">Model 1</span>               
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">Model 1</span>
                   <p class="black-text">a model containing a detailed view ,click this to open model</p>
                </div>
-              </a> 
-               
+              </a>
+
                <div class = "card-action">
                   <button class = "btn waves-effect waves-light blue-grey ">
                      <i class = "material-icons">delete</i></button>
-               </div>         
-                  
-              </div>
-           </div> 
-       
+               </div>
 
+              </div>
+           </div>
        </div>
 
       <div class="row">
 
          <div class = "col s12 m4" >
             <div class="card-panel white">
-              <a href="#"> 
-               <div class = "card-content">   
-               <span class="card-title black-text">Model 1</span>               
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">Model 1</span>
                   <p class="black-text">a model containing a detailed view ,click this to open model</p>
                </div>
-              </a> 
-               
+              </a>
+
                <div class = "card-action">
                   <button class = "btn waves-effect waves-light blue-grey ">
                      <i class = "material-icons">delete</i></button>
-               </div>         
-                  
+               </div>
+
               </div>
-           </div> 
+           </div>
 
 
          <div class = "col s12 m4" >
             <div class="card-panel white">
-              <a href="#"> 
-               <div class = "card-content">   
-               <span class="card-title black-text">Model 1</span>               
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">Model 1</span>
                   <p class="black-text">a model containing a detailed view ,click this to open model</p>
                </div>
-              </a> 
-               
+              </a>
+
                <div class = "card-action">
                   <button class = "btn waves-effect waves-light blue-grey ">
                      <i class = "material-icons">delete</i></button>
-               </div>         
-                  
+               </div>
+
               </div>
-           </div> 
-           
+           </div>
+
 
          <div class = "col s12 m4" >
             <div class="card-panel white">
-              <a href="#"> 
-               <div class = "card-content">   
-               <span class="card-title black-text">Model 1</span>               
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">Model 1</span>
                   <p class="black-text">a model containing a detailed view ,click this to open model</p>
                </div>
-              </a> 
-               
+              </a>
+
                <div class = "card-action">
                   <button class = "btn waves-effect waves-light blue-grey ">
                      <i class = "material-icons">delete</i></button>
-               </div>         
-                  
+               </div>
+
               </div>
-           </div>     
+           </div>
 
 
 
 
 </div>
 
-      </div> 
+      </div>
     </div>
 
       </div>
-
+-->
 {% endblock %}
 
 
@@ -228,7 +247,7 @@
 {% block scripts %}
 
 <script type = "text/javascript"
-         src = "https://code.jquery.com/jquery-2.1.1.min.js"></script>  
+         src = "https://code.jquery.com/jquery-2.1.1.min.js"></script>
 
 
 {% endblock%}
