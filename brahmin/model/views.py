@@ -195,7 +195,7 @@ def dashboard(request, *args, **kwargs):
         final = {}
         x = collection.find({"user":user.id,"trash":False})
 
-        # Preparing return json data
+        # Preparing return html data
         for i in x:
             if i["name"] not in final:
                 #list = [set(version_names), no_of_versions, no_of_instances]
