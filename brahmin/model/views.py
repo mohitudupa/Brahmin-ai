@@ -25,7 +25,6 @@ db = client["modelmgmt"]
 collection = db["models"]
 log = db["log"]
 
-
 # Function to log user activities
 def log_instance(action, instance):
     x = log.find_one({"instance":instance})
@@ -43,10 +42,10 @@ def validate(data, keys, regex, types, error):
         if isinstance(data[keys[i]], types[i]):
             if not bool(re.match(regex[i], str(data[keys[i]]))):
                 error.append("Invalid value for " + keys[i])
-                raise KeyError()
+                raise AssertionError()
         else:
             error.append("Invalid type for " + keys[i])
-            raise TypeError()
+            raise AssertionError()
     return error
 
 
@@ -161,14 +160,12 @@ def register_form(request, *args, **kwargs):
                 pass
 
         except KeyError:
-            messages.info(request, "Invalid form data values")
+            messages.info(request,"The following values are required: first_name, last_name, username,password and email")
             return redirect("model:register")
-            #error["error"].append("The following values are required: first_name, last_name, username,"
-            #                      "password, confirm_password and email")
-        except TypeError:
-            messages.info(request, "Invalid form data type")
-            return redirect("model:register")
-
+        except AssertionError:
+                for i in error:
+                    messages.info(request,i)
+                return redirect("model:register")
         # No errors are found, registering user
         user = User.objects.create_user(data['username'], data['email'], data['password'])
         user.first_name = data['first_name']
@@ -193,4 +190,20 @@ def register_form(request, *args, **kwargs):
 @login_required(login_url="model:login")
 def dashboard(request, *args, **kwargs):
     if request.method == "GET":
-        return render(request, "model/dashboard.html", {"error": False})
+        user = request.user
+        error = []
+        final = {}
+        x = collection.find({"user":user.id,"trash":False})
+
+        # Preparing return json data
+        for i in x:
+            if i["name"] not in final:
+                #list = [set(version_names), no_of_versions, no_of_instances]
+                final[i["name"]] = [set(),0,0]
+            if i["version"] not in final[i["name"]][0]:
+                final[i["name"]][0].add(i["version"])
+                final[i["name"]][1] += 1
+            final[i["name"]][2]+=1
+        print(final)
+
+        return render(request, "model/dashboard.html", {"error": False,"final":final})
