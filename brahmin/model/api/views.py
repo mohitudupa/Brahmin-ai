@@ -33,6 +33,7 @@ client = pymongo.MongoClient()
 db = client["modelmgmt"]
 collection = db["models"]
 log = db["log"]
+users = db["users"]
 
 
 def log_instance(action, instance):
@@ -55,6 +56,20 @@ def validate(data, keys, regex, types, error):
             error["error"].append("Invalid type for " + keys[i])
             raise AssertionError()
     return error
+
+
+def update_user_collection(id, name, version, instance_id, trash):
+    user_collection = users.find_one({"user": id})
+
+    if name not in user_collection:
+        user_collection[name] = {}
+    if version not in user_collection[name]:
+        user_collection[name][version] = {"True": [], "False": []}
+    user_collection[name][version][str(trash)].append(instance_id)
+
+    users.update_one({"user": id}, {"$set": {name: user_collection[name]}})
+
+
 
 
 class Index(APIView):
@@ -111,6 +126,9 @@ class Register(APIView):
         # Generate token for user
         token = Token.objects.create(user=user)
         token.save()
+
+        # Generate an entry for the user in the users collection
+        users.insert_one({"user": user.id})
 
         return Response({
             "status": "User registration successful",
@@ -284,6 +302,19 @@ class Clone(APIView):
         # Saving instance log
         log.insert_one(newlog).inserted_id
 
+        # Updating the user collection
+        update_user_collection(user.id, x["name"], x["version"], pid, x["trash"])
+
+        res = users.update_one({"_id":ObjectId(data["id"]),"user":user.id} ,
+        {"$set":{
+            "name":data["new_name"],
+            "version":data["new_version"],
+            "pickle":data["new_pickle"],
+            "private":data["new_private"],
+            "last_modified":datetime.datetime.now(),
+            "docs":data["new_docs"]}
+        })
+
         return Response({"Mongo_instance_id":str(pid)})
 
 
@@ -347,6 +378,9 @@ class Upload(APIView):
         # Saving instance log
         log.insert_one(newlog).inserted_id
 
+        # Updating the user collection
+        update_user_collection(user.id, newmodel["name"], newmodel["version"], pid, newmodel["trash"])
+
         return Response({"Mongo_instance_id":str(pid)})
 
 
@@ -407,6 +441,9 @@ class Update(APIView):
         # Logging activity
         log_instance("Update", instance)
 
+        # Updating the user collection
+        update_user_collection(user.id, x["name"], x["version"], pid, x["trash"])
+
         return Response({"Success": "Model updated successfully"})
 
 
@@ -451,6 +488,9 @@ class Delete(APIView):
         # Logging activity
         log_instance("Delete", instance)
 
+        # Updating the user collection
+        update_user_collection(user.id, x["name"], x["version"], pid, True)
+
         return Response({"Success": "Instance: " + data["id"] + " moved to trash"})
 
 
@@ -494,6 +534,9 @@ class Restore(APIView):
 
         # Logging activity
         log_instance("Restore", instance)
+
+        # Updating the user collection
+        update_user_collection(user.id, x["name"], x["version"], pid, False)
 
         return Response({"Success": "Instance: " + data["id"] + " restored from trash"})
 

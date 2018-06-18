@@ -24,6 +24,7 @@ client = pymongo.MongoClient()
 db = client["modelmgmt"]
 collection = db["models"]
 log = db["log"]
+users = db["users"]
 
 # Function to log user activities
 def log_instance(action, instance):
@@ -47,6 +48,19 @@ def validate(data, keys, regex, types, error):
             error.append("Invalid type for " + keys[i])
             raise AssertionError()
     return error
+
+
+# Updating the user collection
+def update_user_collection(id, name, version, instance_id, trash):
+    user_collection = users.find_one({"user": id})
+
+    if name not in user_collection:
+        user_collection[name] = {}
+    if version not in user_collection[name]:
+        user_collection[name][version] = {"True": [], "False": []}
+    user_collection[name][version][str(trash)].append(instance_id)
+
+    users.update_one({"user": id}, {"$set": {name: user_collection[name]}})
 
 
 # Home page view
@@ -166,6 +180,7 @@ def register_form(request, *args, **kwargs):
                 for i in error:
                     messages.info(request,i)
                 return redirect("model:register")
+
         # No errors are found, registering user
         user = User.objects.create_user(data['username'], data['email'], data['password'])
         user.first_name = data['first_name']
@@ -175,6 +190,10 @@ def register_form(request, *args, **kwargs):
         # Generate token for user
         token = Token.objects.create(user=user)
         token.save()
+
+        # Generate an entry for the user in the users collection
+        users.insert_one({"user": user.id})
+        
         #authenticate user
         user = authenticate(request, username=data["username"], password=data["password"])
 

@@ -3,35 +3,49 @@
 
 {% block style %}
 <style>
-    .flex-container {
-        display: -webkit-flex;
-        display: flex;
-        -webkit-flex-flow: row wrap;
-        flex-flow: row wrap;
-        text-align: center;
+    @media(min-width: 600px){
+        .grid-row{
+            display: grid;
+            grid-template-columns: 3fr 3fr 3fr;
+            grid-gap: 3px;
+            grid-auto-rows: minmax(200px, auto)
+        }
+
+        .grid-card{
+            position: relative;
+            margin-top: 7px;
+            margin-bottom: 7px;
+            margin-right: 3px;
+            margin-left: 3px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            padding-left: 15px;
+            padding-right: 15px;
+            border-radius: 3px;
+        }
     }
 
-    .flex-container > * {
-        padding: 15px;
-        -webkit-flex: 1 100%;
-        flex: 1 100%;
+    @media(max-width: 600px){
+        .grid-row{
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-gap: 3px;
+            grid-auto-rows: minmax(200px, auto)
+        }
+
+        .grid-card{
+            position: relative;
+            margin-top: 7px;
+            margin-bottom: 7px;
+            margin-right: 10px;
+            margin-left: 10px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            padding-left: 15px;
+            padding-right: 15px;
+            border-radius: 3px;
+        }
     }
-
-    .modelcards {
-        text-align: left;
-    }
-
-    .profile {background:#eee;}
-
-    @media all and (min-width: 768px) {
-        .profile {text-align:left;-webkit-flex: 1 auto;flex:1 auto;-webkit-order:1;order:1;}
-        .modelcards {-webkit-flex:5 0px;flex:5 0px;-webkit-order:2;order:2;}
-    }
-
-     body {
-       background-image: "https://images.pexels.com/photos/114979/pexels-photo-114979.jpeg?cs=srgb&dl=hd-wallpaper-mountain-range-mountains-114979.jpg&fm=jpg";
-       background-color: #212121  ;
-}
 </style>
 {% endblock %}
 
@@ -62,7 +76,97 @@
 
 
 {% block body %}
-<div class="flex-container">
+
+<section class="section blue-grey darken-2">
+    <div class="row">
+        <div class="col m3 col l3 col s12">
+            <div class="card-panel white z-depth-1">
+                <div class="row">
+                    <div class="col s12">
+                        <img src="http://www.american.edu/uploads/profiles/large/chris_palmer_profile_11.jpg" alt="" class="circle responsive-img">
+                    </div>
+                    <div class="col s12">
+                    <span class="teal-text">
+                        User profile details contails informarion about the user .... <br>
+                    </span>
+                    <button class = "btn waves-effect waves-light blue-grey ">
+                        <i class = "small material-icons ">file_upload</i></button>
+                    <button class = "btn waves-effect waves-light blue-grey ">
+                        <i class = "small material-icons ">sync</i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-m9 col-l9 col-s12 grid-row hide-on-small-only">
+            {% for model, modeldetail in final.items %}
+                <div class="grid-card white">
+                    <a href="#">
+                    <div class = "card-content">
+                        <span class="card-title black-text">{{ model }}</span>
+                            <p class="black-text">a model containing a detailed view ,click this to open model</p>
+                            <ol class = "green-text" style="list-style-type:upper-roman;">
+                                <li>
+                                    versions = {{ modeldetail.0 }}
+                                </li>
+                                <li>
+                                    number of versions = {{ modeldetail.1 }}
+                                </li>
+                                <li>
+                                    number of instances = {{ modeldetail.2 }}
+                                </li>
+                            </ol>
+                        </div>
+                    </a>
+
+                    <div class = "card-action">
+                        <button class = "btn waves-effect waves-light blue-grey ">
+                        <i class = "material-icons">delete</i></button>
+                    </div>
+
+                </div>
+                {% cycle '' '' '' '' '' '<div class="clearfix visible-model"></div>' %}
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+
+<section class="section blue-grey darken-2 hide-on-med-and-up">
+    <div class="grid-row">
+        {% for model, modeldetail in final.items %}
+            <div class="grid-card white">
+                <a href="#">
+                <div class = "card-content">
+                    <span class="card-title black-text">{{ model }}</span>
+                        <p class="black-text">a model containing a detailed view ,click this to open model</p>
+                        <ol class = "green-text" style="list-style-type:upper-roman;">
+                            <li>
+                                versions = {{ modeldetail.0 }}
+                            </li>
+                            <li>
+                                number of versions = {{ modeldetail.1 }}
+                            </li>
+                            <li>
+                                number of instances = {{ modeldetail.2 }}
+                            </li>
+                        </ol>
+                    </div>
+                </a>
+
+                <div class = "card-action">
+                    <button class = "btn waves-effect waves-light blue-grey ">
+                    <i class = "material-icons">delete</i></button>
+                </div>
+
+            </div>
+            {% cycle '' '' '' '' '' '<div class="clearfix visible-model"></div>' %}
+        {% endfor %}
+    </div>
+</section>
+
+
+
+<!--<div class="flex-container">
 
         <div class="profile"  style="flex-basis: 50px">
 
@@ -83,41 +187,39 @@
         </div>
 
 
-
-
         <div class="modelcards">
         <div class="albums-container container-fluid">
         <div class = "row">
           {% if final %}
             {% for model,modeldetail in final.items %}
-          <div class = "col s12 m4" >
-            <div class="card-panel  white ">
-              <a href="#">
-               <div class = "card-content">
-               <span class="card-title black-text">{{ model }}</span>
-                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
-                    <ol class = "green-text" style="list-style-type:upper-roman;">
-                      <li>
-                        versions = {{ modeldetail.0 }}
-                      </li>
-                      <li>
-                        number of versions = {{ modeldetail.1 }}
-                      </li>
-                      <li>
-                          number of instances = {{ modeldetail.2 }}
-                      </li>
-                    </ol>
-               </div>
-              </a>
+              <div class = "col s12 m4" >
+                <div class="card-panel  white ">
+                  <a href="#">
+                   <div class = "card-content">
+                   <span class="card-title black-text">{{ model }}</span>
+                      <p class="black-text">a model containing a detailed view ,click this to open model</p>
+                        <ol class = "green-text" style="list-style-type:upper-roman;">
+                          <li>
+                            versions = {{ modeldetail.0 }}
+                          </li>
+                          <li>
+                            number of versions = {{ modeldetail.1 }}
+                          </li>
+                          <li>
+                              number of instances = {{ modeldetail.2 }}
+                          </li>
+                        </ol>
+                   </div>
+                  </a>
 
-               <div class = "card-action">
-                  <button class = "btn waves-effect waves-light blue-grey ">
-                     <i class = "material-icons">delete</i></button>
-               </div>
+                   <div class = "card-action">
+                      <button class = "btn waves-effect waves-light blue-grey ">
+                         <i class = "material-icons">delete</i></button>
+                   </div>
 
-              </div>
-           </div>
-           {% cycle '' '' '' '' '' '<div class="clearfix visible-model"></div>' %}
+                  </div>
+               </div>
+               {% cycle '' '' '' '' '' '<div class="clearfix visible-model"></div>' %}
            {% endfor %}
          </div>
            {% else %}
@@ -125,7 +227,7 @@
        {% endif %}
        </div>
      </div>
-   </div>
+   </div>-->
 <!--
          <div class = "col s12 m4" >
             <div class="card-panel white">
