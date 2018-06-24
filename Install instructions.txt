@@ -21,7 +21,8 @@ $ pip install scikit-learn==0.19.1
 $ pip install scipy==1.0.1
 $ pip install sklearn==0.0
 $ pip install pymongo==3.6.1
-
+$ pip install pandas==0.23.1
+$ pip install requests==2.18.4
 
 # Starting the server
 $ cd brahmin

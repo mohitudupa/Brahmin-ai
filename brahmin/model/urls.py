@@ -14,4 +14,12 @@ urlpatterns = [
     path('register/', views.register, name="register"),
     path('register/form', views.register_form, name="register_form"),
     path('dashboard/', views.dashboard, name="dashboard"),
+    path('versionview/<str:modelname>/',views.versionview,name="versionview"),
+    path('trash/',views.trash,name="trash"),
+    path('restore/<str:instance>/',views.restore,name="restore"),
+    path('deleteins/<str:instance_id>/',views.delete_ins,name="delete_ins"),
+    path('instanceview/<str:instance_id>/',views.instanceview,name="instanceview"),
+    path('instance_train/',views.instance_train,name="instance_train"),
+    path('instance_test/',views.instance_test,name="instance_test"),
+    path('instance_predict/',views.instance_predict,name="instance_predict"),
 ]
