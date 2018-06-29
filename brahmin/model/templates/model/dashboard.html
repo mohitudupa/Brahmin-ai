@@ -3,49 +3,7 @@
 
 {% block style %}
 <style>
-    @media(min-width: 600px){
-        .grid-row{
-            display: grid;
-            grid-template-columns: 3fr 3fr 3fr;
-            grid-gap: 3px;
-            grid-auto-rows: minmax(200px, auto)
-        }
 
-        .grid-card{
-            position: relative;
-            margin-top: 7px;
-            margin-bottom: 7px;
-            margin-right: 3px;
-            margin-left: 3px;
-            padding-top: 10px;
-            padding-bottom: 10px;
-            padding-left: 15px;
-            padding-right: 15px;
-            border-radius: 3px;
-        }
-    }
-
-    @media(max-width: 600px){
-        .grid-row{
-            display: grid;
-            grid-template-columns: 1fr;
-            grid-gap: 3px;
-            grid-auto-rows: minmax(200px, auto)
-        }
-
-        .grid-card{
-            position: relative;
-            margin-top: 7px;
-            margin-bottom: 7px;
-            margin-right: 10px;
-            margin-left: 10px;
-            padding-top: 10px;
-            padding-bottom: 10px;
-            padding-left: 15px;
-            padding-right: 15px;
-            border-radius: 3px;
-        }
-    }
 </style>
 {% endblock %}
 
@@ -60,6 +18,9 @@
         <a href="{% url 'model:home' %}" class="black-text">Home</a>
     </li>
     <li>
+        <a href="{% url 'model:trash' %}" class="black-text">Bin</a>
+    </li>
+    <li>
         <a href="{% url 'model:logout' %}" class="black-text">logout</a>
     </li>
 {% endblock %}
@@ -70,268 +31,41 @@
         <a href="{% url 'model:home' %}" class="black-text">Home</a>
     </li>
     <li>
+        <a href="{% url 'model:trash' %}" class="black-text">Bin</a>
+    </li>
+    <li>
         <a href="{% url 'model:logout' %}" class="black-text">logout</a>
     </li>
 {% endblock %}
 
 
 {% block body %}
-
-<section class="section blue-grey darken-2">
-    <div class="row">
-        <div class="col m3 col l3 col s12">
-            <div class="card-panel white z-depth-1">
-                <div class="row">
-                    <div class="col s12">
-                        <img src="http://www.american.edu/uploads/profiles/large/chris_palmer_profile_11.jpg" alt="" class="circle responsive-img">
-                    </div>
-                    <div class="col s12">
-                    <span class="teal-text">
-                        User profile details contails informarion about the user .... <br>
-                    </span>
-                    <button class = "btn waves-effect waves-light blue-grey ">
-                        <i class = "small material-icons ">file_upload</i></button>
-                    <button class = "btn waves-effect waves-light blue-grey ">
-                        <i class = "small material-icons ">sync</i></button>
-                    </div>
+    <section class="scetion blue-grey darken-2" style="overflow: auto">
+        <div class="row">
+            <div class="col s12 m3 l3">
+                <div class="card-panel white">
+                    Lorem ipsum dolor sit amet, consectetur adipisicing elit. Reiciendis vel aperiam voluptas ratione laudantium veniam voluptatibus perspiciatis. Cum aliquam aliquid tempora, laudantium, quos illum maiores, ratione, ut dignissimos ducimus esse voluptas fugit commodi atque amet ad excepturi! Repellendus, asperiores impedit illum molestiae, officia veritatis sapiente quibusdam numquam nisi est reiciendis ipsa rem accusamus et. Odit veniam velit, ratione corporis est libero amet magnam distinctio harum aspernatur eaque veritatis aliquam repellendus non, sed alias, aliquid laudantium, similique impedit aperiam illum atque!
                 </div>
             </div>
-        </div>
-        <div class="col-m9 col-l9 col-s12 grid-row hide-on-small-only">
-            {% for model, modeldetail in final.items %}
-                <div class="grid-card white">
-                    <a href="#">
-                    <div class = "card-content">
-                        <span class="card-title black-text">{{ model }}</span>
-                            <p class="black-text">a model containing a detailed view ,click this to open model</p>
-                            <ol class = "green-text" style="list-style-type:upper-roman;">
-                                <li>
-                                    versions = {{ modeldetail.0 }}
-                                </li>
-                                <li>
-                                    number of versions = {{ modeldetail.1 }}
-                                </li>
-                                <li>
-                                    number of instances = {{ modeldetail.2 }}
-                                </li>
-                            </ol>
+            <div class="col s12 m9 l9">
+                {% for model, versions in final.items %}
+                    <div class = "card white">
+                        <div class="card-content">
+                            <span class="card-title black-text">{{ model }}</span>
+                            <p class="black-text">Versions</p><br />
+                            {% for version, details in versions.items %}
+                                <div class="row">
+                                    <div class="col s6 m3 l3">
+                                        <a href="{% url 'model:instanceview' details.0 %}" class="waves-effect waves-light blue-grey darken-2 btn">{{ version }}</a>
+                                    </div>
+                                </div>
+                            {% endfor %}
                         </div>
-                    </a>
-
-                    <div class = "card-action">
-                        <button class = "btn waves-effect waves-light blue-grey ">
-                        <i class = "material-icons">delete</i></button>
                     </div>
-
-                </div>
-                {% cycle '' '' '' '' '' '<div class="clearfix visible-model"></div>' %}
-            {% endfor %}
-        </div>
-    </div>
-</section>
-
-
-<section class="section blue-grey darken-2 hide-on-med-and-up">
-    <div class="grid-row">
-        {% for model, modeldetail in final.items %}
-            <div class="grid-card white">
-                <a href="#">
-                <div class = "card-content">
-                    <span class="card-title black-text">{{ model }}</span>
-                        <p class="black-text">a model containing a detailed view ,click this to open model</p>
-                        <ol class = "green-text" style="list-style-type:upper-roman;">
-                            <li>
-                                versions = {{ modeldetail.0 }}
-                            </li>
-                            <li>
-                                number of versions = {{ modeldetail.1 }}
-                            </li>
-                            <li>
-                                number of instances = {{ modeldetail.2 }}
-                            </li>
-                        </ol>
-                    </div>
-                </a>
-
-                <div class = "card-action">
-                    <button class = "btn waves-effect waves-light blue-grey ">
-                    <i class = "material-icons">delete</i></button>
-                </div>
-
-            </div>
-            {% cycle '' '' '' '' '' '<div class="clearfix visible-model"></div>' %}
-        {% endfor %}
-    </div>
-</section>
-
-
-
-<!--<div class="flex-container">
-
-        <div class="profile"  style="flex-basis: 50px">
-
-           <div class="card-panel grey lighten-5 z-depth-1">
-                <div class="col s1 m1">
-                    <img src="http://www.american.edu/uploads/profiles/large/chris_palmer_profile_11.jpg" alt="" class="circle responsive-img">
-                </div>
-                <div class="col s1 m1">
-                <span class="teal-text">
-                    User profile details contails informarion about the user .... <br>
-                </span>
-                <button class = "btn waves-effect waves-light blue-grey ">
-                    <i class = "small material-icons ">file_upload</i></button>
-                <button class = "btn waves-effect waves-light blue-grey ">
-                    <i class = "small material-icons ">sync</i></button>
-                </div>
+                {% endfor %}
             </div>
         </div>
-
-
-        <div class="modelcards">
-        <div class="albums-container container-fluid">
-        <div class = "row">
-          {% if final %}
-            {% for model,modeldetail in final.items %}
-              <div class = "col s12 m4" >
-                <div class="card-panel  white ">
-                  <a href="#">
-                   <div class = "card-content">
-                   <span class="card-title black-text">{{ model }}</span>
-                      <p class="black-text">a model containing a detailed view ,click this to open model</p>
-                        <ol class = "green-text" style="list-style-type:upper-roman;">
-                          <li>
-                            versions = {{ modeldetail.0 }}
-                          </li>
-                          <li>
-                            number of versions = {{ modeldetail.1 }}
-                          </li>
-                          <li>
-                              number of instances = {{ modeldetail.2 }}
-                          </li>
-                        </ol>
-                   </div>
-                  </a>
-
-                   <div class = "card-action">
-                      <button class = "btn waves-effect waves-light blue-grey ">
-                         <i class = "material-icons">delete</i></button>
-                   </div>
-
-                  </div>
-               </div>
-               {% cycle '' '' '' '' '' '<div class="clearfix visible-model"></div>' %}
-           {% endfor %}
-         </div>
-           {% else %}
-         <h3>No models</h3>
-       {% endif %}
-       </div>
-     </div>
-   </div>-->
-<!--
-         <div class = "col s12 m4" >
-            <div class="card-panel white">
-              <a href="#">
-               <div class = "card-content">
-               <span class="card-title black-text">Model 1</span>
-                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
-               </div>
-              </a>
-
-               <div class = "card-action">
-                  <button class = "btn waves-effect waves-light blue-grey ">
-                     <i class = "material-icons">delete</i></button>
-               </div>
-
-              </div>
-           </div>
-
-
-
-
-        <div class = "col s12 m4" >
-            <div class="card-panel white">
-              <a href="#">
-               <div class = "card-content">
-               <span class="card-title black-text">Model 1</span>
-                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
-               </div>
-              </a>
-
-               <div class = "card-action">
-                  <button class = "btn waves-effect waves-light blue-grey ">
-                     <i class = "material-icons">delete</i></button>
-               </div>
-
-              </div>
-           </div>
-       </div>
-
-      <div class="row">
-
-         <div class = "col s12 m4" >
-            <div class="card-panel white">
-              <a href="#">
-               <div class = "card-content">
-               <span class="card-title black-text">Model 1</span>
-                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
-               </div>
-              </a>
-
-               <div class = "card-action">
-                  <button class = "btn waves-effect waves-light blue-grey ">
-                     <i class = "material-icons">delete</i></button>
-               </div>
-
-              </div>
-           </div>
-
-
-         <div class = "col s12 m4" >
-            <div class="card-panel white">
-              <a href="#">
-               <div class = "card-content">
-               <span class="card-title black-text">Model 1</span>
-                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
-               </div>
-              </a>
-
-               <div class = "card-action">
-                  <button class = "btn waves-effect waves-light blue-grey ">
-                     <i class = "material-icons">delete</i></button>
-               </div>
-
-              </div>
-           </div>
-
-
-         <div class = "col s12 m4" >
-            <div class="card-panel white">
-              <a href="#">
-               <div class = "card-content">
-               <span class="card-title black-text">Model 1</span>
-                  <p class="black-text">a model containing a detailed view ,click this to open model</p>
-               </div>
-              </a>
-
-               <div class = "card-action">
-                  <button class = "btn waves-effect waves-light blue-grey ">
-                     <i class = "material-icons">delete</i></button>
-               </div>
-
-              </div>
-           </div>
-
-
-
-
-</div>
-
-      </div>
-    </div>
-
-      </div>
--->
+    </section>
 {% endblock %}
 
 

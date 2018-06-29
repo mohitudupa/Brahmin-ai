@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 import re
 import datetime
+import time
 from sklearn import *
 import numpy as np
 import pandas as pd
@@ -36,14 +37,17 @@ log = db["log"]
 users = db["users"]
 
 
-def log_instance(action, instance):
+def log_instance(action, description, instance):
     x = log.find_one({"instance":instance})
     now = datetime.datetime.now()
-    key = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
-    if key not in x:
-        x[key] = []        
-    x[key].append(action)
-    log.update_one({"instance":instance}, {"$set": {key: x[key]}})
+    date = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
+    x["logs"].append([date, action, description])
+    if action == "Commit":
+        index = len(x["traceback"])
+        x["traceback"].append([date, index, description])
+        log.update_one({"instance":instance}, {"$set": {"logs": x["logs"], "traceback": x["traceback"]}})
+    else:
+        log.update_one({"instance":instance}, {"$set": {"logs": x["logs"]}})
 
 
 def validate(data, keys, regex, types, error):
@@ -58,18 +62,28 @@ def validate(data, keys, regex, types, error):
     return error
 
 
-def update_user_collection(id, name, version, instance_id, trash):
-    user_collection = users.find_one({"user": id})
+def add_user_collection(user_id, name, version, instance_id, state, docs):
+    user_collection = users.find_one({"user": user_id})
 
-    if name not in user_collection:
-        user_collection[name] = {}
-    if version not in user_collection[name]:
-        user_collection[name][version] = {"True": [], "False": []}
-    user_collection[name][version][str(trash)].append(instance_id)
+    if name not in user_collection[state]:
+        user_collection[state][name] = {}
+    if version not in user_collection[state][name]:
+        user_collection[state][name][version] = {}
 
-    users.update_one({"user": id}, {"$set": {name: user_collection[name]}})
+    user_collection[state][name][version] = [str(instance_id), docs]
+
+    users.update_one({"user": user_id}, {"$set": {state: user_collection[state]}})
 
 
+def del_user_collection(user_id, name, version, instance_id, state, docs):
+    user_collection = users.find_one({"user": user_id})
+
+    del user_collection[state][name][version]
+ 
+    if user_collection[state][name] == {}:
+        del user_collection[state][name]
+
+    users.update_one({"user": user_id}, {"$set": {state: user_collection[state]}})
 
 
 class Index(APIView):
@@ -88,7 +102,6 @@ class Register(APIView):
         error = {"error": []}
 
         try:
-
             keys = ["first_name", "last_name", "email", "password", "username"]
             regex = [name, name, email, password, text]
             types = [str, str, str, str, str]
@@ -107,13 +120,11 @@ class Register(APIView):
                 error["error"].append("username already exists")
             except User.DoesNotExist:
                 pass
-
         except KeyError:
             error["error"].append("The following values are required: first_name, last_name, username, "
                                   "password and email")
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
 
@@ -128,7 +139,7 @@ class Register(APIView):
         token.save()
 
         # Generate an entry for the user in the users collection
-        users.insert_one({"user": user.id})
+        users.insert_one({"user": user.id, "running": {}, "deleted": {}})
 
         return Response({
             "status": "User registration successful",
@@ -152,13 +163,10 @@ class GetToken(APIView):
             regex = [password, name]
             types = [str, str]
             error = validate(data, keys, regex, types, error)
-
         except KeyError:
             error["error"].append("The following values are required: username and password")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
         # Auth
@@ -183,13 +191,10 @@ class ChangePassword(APIView):
             regex = [password, password]
             types = [str, str]
             error = validate(data, keys, regex, types, error)
-
         except KeyError:
             error["error"].append("The following values are required: old_password and new_password")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
         # Auth
@@ -216,13 +221,10 @@ class ChangeToken(APIView):
             regex = [password, name]
             types = [str, str]
             error = validate(data, keys, regex, types, error)
-
         except KeyError:
             error["error"].append("The following values are required: username and password")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
         # Auth
@@ -243,6 +245,7 @@ class Clone(APIView):
 
     def post(self, request, format=None):
         user = request.user
+        user_collection = users.find_one({"user": user.id})
         data = request.data
         error = {"error": []}
         x = []
@@ -255,65 +258,62 @@ class Clone(APIView):
             error = validate(data, keys, regex, types, error)
 
             instance = ObjectId(data["id"])
-            x=collection.find_one({"_id": instance, "trash": False})
+            x = collection.find_one({"_id": instance, "trash": False})
 
             if not x:
                 error["error"].append("Instance does not exist")
-            else:    
+            else:
                 if x["private"] and x["user"] != user.id:
                     error["error"].append("Instance is private")
 
+                # Checking for conflicts
+                try:
+                    user_collection["running"][x["name"]]["clone - " + x["version"]]
+                    error["error"].append("Model conflict occoured")
+                except KeyError:
+                    pass
         except bson.errors.InvalidId:
             error["error"].append("Invalid instance ID")
-
         except KeyError:
             error["error"].append("The following values are required: id")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
 
         # Cloning instance
         newmodel = {
-                    "user":user.id,
-                    "name":x["name"],
-                    "version":x["version"],
-                    "date_created":datetime.datetime.now(),
-                    "last_modified":datetime.datetime.now(),
-                    "private":x["private"],
-                    "trash":x["trash"],
-                    "pickle":x["pickle"],
-                    "confidence":x["confidence"],
-                    "docs":x["docs"]
+                    "user": user.id,
+                    "name": x["name"],
+                    "version": "clone - " + x["version"],
+                    "date_created": datetime.datetime.now(),
+                    "last_modified": datetime.datetime.now(),
+                    "private": x["private"],
+                    "trash": x["trash"],
+                    "buffer": "",
+                    "traceback": x["traceback"],
+                    "pickle": x["pickle"],
+                    "confidence": x["confidence"],
+                    "docs": x["docs"]
                     }
         # Saving new instance
-        pid=collection.insert_one(newmodel).inserted_id
+        pid = collection.insert_one(newmodel).inserted_id
 
         # Creating instance log
         now = datetime.datetime.now()
-        key = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
+        date = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
+        original_user = User.objects.get(id=x["user"]).username
         newlog = {
                     "instance": pid,
                     "user": user.id,
-                    key: ["Clone"]
+                    "logs": [[date, "Clone", "Model cloned from user: " + original_user]],
+                    "traceback": [],
         }
         # Saving instance log
         log.insert_one(newlog).inserted_id
 
         # Updating the user collection
-        update_user_collection(user.id, x["name"], x["version"], pid, x["trash"])
-
-        res = users.update_one({"_id":ObjectId(data["id"]),"user":user.id} ,
-        {"$set":{
-            "name":data["new_name"],
-            "version":data["new_version"],
-            "pickle":data["new_pickle"],
-            "private":data["new_private"],
-            "last_modified":datetime.datetime.now(),
-            "docs":data["new_docs"]}
-        })
+        add_user_collection(user.id, x["name"], "clone - " + x["version"], pid, "running", x["docs"])
 
         return Response({"Mongo_instance_id":str(pid)})
 
@@ -323,6 +323,7 @@ class Upload(APIView):
 
     def post(self, request, format=None):
         user = request.user
+        user_collection = users.find_one({"user": user.id})
         data = request.data
         error = {"error": []}
         x = []
@@ -342,12 +343,16 @@ class Upload(APIView):
             except:
                 error["error"].append("Invalid pickle")
 
+            # Checking for conflicts
+            try:
+                user_collection["running"][data["name"]][data["version"]]
+                error["error"].append("Model conflict occoured")
+            except KeyError:
+                pass
         except KeyError:
             error["error"].append("The following values are required: name, version, pickle, private and docs")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
 
@@ -360,6 +365,8 @@ class Upload(APIView):
                     "last_modified":datetime.datetime.now(),
                     "private":data["private"],
                     "trash":False,
+                    "buffer": "",
+                    "traceback": [],
                     "pickle":data["pickle"],
                     "confidence":0.0,
                     "docs":data["docs"]
@@ -369,17 +376,18 @@ class Upload(APIView):
 
         # Creating instance log
         now = datetime.datetime.now()
-        key = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
+        date = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
         newlog = {
                     "instance": pid,
                     "user": user.id,
-                    key: ["Upload"]
+                    "logs": [[date, "Upload", "Model uploaded by user: " + user.username]],
+                    "traceback": [],
         }
         # Saving instance log
         log.insert_one(newlog).inserted_id
 
         # Updating the user collection
-        update_user_collection(user.id, newmodel["name"], newmodel["version"], pid, newmodel["trash"])
+        add_user_collection(user.id, newmodel["name"], newmodel["version"], pid, "running", newmodel["docs"])
 
         return Response({"Mongo_instance_id":str(pid)})
 
@@ -389,37 +397,35 @@ class Update(APIView):
 
     def post(self, request, format=None):
         user = request.user
+        user_collection = users.find_one({"user": user.id})
         data = request.data
         error = {"error": []}
         x = []
 
         # Validating received data
         try:
-            keys = ["id", "new_name", "new_version", "new_pickle", "new_private", "new_docs"]
-            regex = [text, text, text, text, boolean, text]
-            types = [str, str, str, str, bool, str]
+            keys = ["id", "new_name", "new_version", "new_private", "new_docs", "description"]
+            regex = [text, text, text, boolean, text, text]
+            types = [str, str, str, bool, str, str]
             error = validate(data, keys, regex, types, error)
 
             instance = ObjectId(data["id"])
             x = collection.find_one({"_id": instance,"user": user.id, "trash": False})
-            
-            if x:
-                try:
-                    obj = pickle.loads(base64.b64decode(request.data['new_pickle']))
-                    """if str(type(obj))[8:-2].split(".")[0] != "sklearn":
-                        error["error"].append("Not of type sklearn")
-                    """
-                except Exception:
-                    error["error"].append("Invalid pickle")
-            else:
+
+            if not x:
                 error["error"].append("Instance does not exist")
 
+           # Checking for conflicts
+            try:
+                user_collection["running"][data["new_name"]][data["new_version"]]
+                error["error"].append("Model conflict occoured")
+            except KeyError:
+                pass
         except bson.errors.InvalidId:
             error["error"].append("Invalid instance ID")
-
         except KeyError:
             error["error"].append("The following values are required: id, new_name, new_version, "
-                                  "new_pickle, new_private and new_docs")
+                                  "new_pickle, new_private, new_docs and description")
         except AssertionError:
             pass
 
@@ -431,18 +437,18 @@ class Update(APIView):
         {"$set":{
             "name":data["new_name"],
             "version":data["new_version"],
-            "pickle":data["new_pickle"],
             "private":data["new_private"],
             "last_modified":datetime.datetime.now(),
             "docs":data["new_docs"]}
         })
-        x = collection.find_one({"_id":ObjectId(data["id"]),"user":user.id})
 
         # Logging activity
-        log_instance("Update", instance)
+        log_instance("Edit", data["description"], instance)
 
         # Updating the user collection
-        update_user_collection(user.id, x["name"], x["version"], pid, x["trash"])
+        # Deleting old data
+        del_user_collection(user.id, x["name"], x["version"], instance, "running", x["docs"])
+        add_user_collection(user.id, data["new_name"], data["new_version"], instance, "running", data["new_docs"])
 
         return Response({"Success": "Model updated successfully"})
 
@@ -468,28 +474,28 @@ class Delete(APIView):
 
             if not x:
                 error["error"].append("Instance does not exist")
-
         except bson.errors.InvalidId:
             error["error"].append("Invalid instance ID")
-
         except KeyError:
             error["error"].append("The following values are required: id")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
 
+        # Updating the epoc extension
+        new_version = x["version"].split("_rest_")[0] + "_rest_" + str(time.time())
+
         # Moving instance into trash
         res = collection.update_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":False} ,
-        {"$set":{"trash":True,"last_modified":datetime.datetime.now()}})
+        {"$set":{"trash":True,"last_modified":datetime.datetime.now(), "version": new_version}})
 
         # Logging activity
-        log_instance("Delete", instance)
+        log_instance("Delete", "Model moved to trash", instance)
 
         # Updating the user collection
-        update_user_collection(user.id, x["name"], x["version"], pid, True)
+        del_user_collection(user.id, x["name"], x["version"], instance, "running", x["docs"])
+        add_user_collection(user.id, x["name"], new_version, instance, "deleted", x["docs"])
 
         return Response({"Success": "Instance: " + data["id"] + " moved to trash"})
 
@@ -515,28 +521,28 @@ class Restore(APIView):
 
             if not x:
                 error["error"].append("Instance does not exist")
-
         except bson.errors.InvalidId:
             error["error"].append("Invalid instance ID")
-        
         except KeyError:
             error["error"].append("The following values are required: id")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
 
+        # Updating the epoc extension
+        new_version = x["version"].split("_rest_")[0] + "_rest_" + str(time.time())
+
         # Restoring instance from trash
-        res = collection.update_one({"_id":ObjectId(data["id"]),"user":user.id,"trash":True} ,
-        {"$set":{"trash":False,"last_modified":datetime.datetime.now()}})
+        res = collection.update_one({"_id": ObjectId(data["id"]), "user": user.id, "trash": True} ,
+        {"$set":{"trash": False, "last_modified": datetime.datetime.now(), "version": new_version}})
 
         # Logging activity
-        log_instance("Restore", instance)
+        log_instance("Restore", "Model restored from trash", instance)
 
         # Updating the user collection
-        update_user_collection(user.id, x["name"], x["version"], pid, False)
+        del_user_collection(user.id, x["name"], x["version"], instance, "deleted", x["docs"])
+        add_user_collection(user.id, x["name"], new_version, instance, "running", x["docs"])
 
         return Response({"Success": "Instance: " + data["id"] + " restored from trash"})
 
@@ -546,9 +552,9 @@ class GetDetails(APIView):
 
     def post(self, request, format=None):
         user = request.user
+        user_collection = users.find_one({"user": user.id})
         data = request.data
         error = {"error": []}
-        final = {}
 
         # Validating received data
         try:
@@ -556,32 +562,17 @@ class GetDetails(APIView):
             regex = [boolean]
             types = [bool]
             error = validate(data, keys, regex, types, error)
-
         except KeyError:
             error["error"].append("The following values are required: trash")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
 
-        # Fetching instance data
-        x=collection.find({"user":user.id,"trash":data["trash"]})
-
-        # Preparing return json data
-        for i in x:
-            if i["name"] not in final:
-                final[i["name"]] = {}
-            if i["version"] not in final[i["name"]]:
-                final[i["name"]][i["version"]] = []
-            final[i["name"]][i["version"]].append({
-                "id": str(i["_id"]),
-                "date_created": i["date_created"],
-                "confidence": i["confidence"]
-            })
-
-        return Response(final)
+        # Sending response
+        if data["trash"]:
+            return Response(user_collection["deleted"])
+        return Response(user_collection["running"])
 
 
 class GetNames(APIView):
@@ -589,9 +580,9 @@ class GetNames(APIView):
 
     def post(self, request, format=None):
         user = request.user
+        user_collection = users.find_one({"user": user.id})
         data = request.data
         error = {"error": []}
-        final = {"names": set()}
 
         # Validating received data
         try:
@@ -599,25 +590,17 @@ class GetNames(APIView):
             regex = [boolean]
             types = [bool]
             error = validate(data, keys, regex, types, error)
-
         except KeyError:
             error["error"].append("The following values are required: trash")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
 
-        # Fetching instance data
-        x = collection.find({"user":user.id,"trash":data["trash"]})
-
-        # Preparing return json data
-        for i in x:
-            final["names"].add(i["name"])
-        final["names"] = list(final["names"])
-
-        return Response(final)
+        # Sending response
+        if data["trash"]:
+            return Response({"names": user_collection["deleted"].keys()})
+        return Response({"names": user_collection["running"].keys()})
 
 
 class GetVersions(APIView):
@@ -625,9 +608,9 @@ class GetVersions(APIView):
 
     def post(self, request, format=None):
         user = request.user
+        user_collection = users.find_one({"user": user.id})
         data = request.data
         error = {"error": []}
-        final = {"versions": set()}
 
         # Validating received data
         try:
@@ -635,25 +618,20 @@ class GetVersions(APIView):
             regex = [text, boolean]
             types = [str, bool]
             error = validate(data, keys, regex, types, error)
-
         except KeyError:
             error["error"].append("The following values are required: name, trash")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
 
-        # Fetching instance data
-        x=collection.find({"user":user.id,"name":data["name"],"trash":data["trash"]})
-
-        # Preparing return json data
-        for i in x:
-            final["versions"].add(i["version"])
-        final["versions"] = list(final["versions"])
-
-        return Response(final)
+        # Sending response
+        try:
+            if data["trash"]:
+                return Response({"versions": user_collection["deleted"][data["name"]].keys()})
+            return Response({"versions": user_collection["running"][data["name"]].keys()})
+        except KeyError:
+            return Response({"error": ["Model name does not exist"]})
 
 
 class GetInstances(APIView):
@@ -661,6 +639,7 @@ class GetInstances(APIView):
 
     def post(self, request, format=None):
         user = request.user
+        user_collection = users.find_one({"user": user.id})
         data = request.data
         error = {"error": []}
         final = {"id": []}
@@ -671,24 +650,20 @@ class GetInstances(APIView):
             regex = [text, text, boolean]
             types = [str, str, bool]
             error = validate(data, keys, regex, types, error)
-
         except KeyError:
             error["error"].append("The following values are required: name, version, trash")
-
         except AssertionError:
             pass
-
         if error["error"]:
             return Response(error)
 
-        # Fetching Instance data
-        x = collection.find({"user":user.id,"name":data["name"],"version":data["version"],"trash":data["trash"]})
-
-        # Preparing return json data
-        for i in x:
-            final["id"].append(str(i["_id"]))
-
-        return Response(final)
+        # Sending response
+        try:
+            if data["trash"]:
+                return Response({"id": user_collection["deleted"][data["name"]][data["version"]][0]})
+            return Response({"id": user_collection["running"][data["name"]][data["version"]][0]})
+        except KeyError:
+            return Response({"error": ["Model does not exist"]})
 
 
 class GetModel(APIView):
@@ -710,7 +685,7 @@ class GetModel(APIView):
             instance = ObjectId(data["id"])
             # Fetching instance data
             x = collection.find_one({"_id": instance, "trash": False})
-            
+
             if not x:
                 error["error"].append("Instance does not exist")
             else:
@@ -719,7 +694,7 @@ class GetModel(APIView):
 
         except bson.errors.InvalidId:
             error["error"].append("Invalid instance ID")
-        
+
         except KeyError:
             error["error"].append("The following values are required: id")
 
@@ -732,6 +707,7 @@ class GetModel(APIView):
         del x["user"]
         x["id"] = str(x["_id"])
         del x["_id"]
+        del x["traceback"]
         return Response(x)
 
 
@@ -754,13 +730,13 @@ class GetLog(APIView):
             instance = ObjectId(data["id"])
             # Fetching logs
             x = log.find_one({"instance": instance, "user": user.id})
-            
+
             if not x:
                 error["error"].append("Instance does not exist")
 
         except bson.errors.InvalidId:
             error["error"].append("Invalid instance ID")
-        
+
         except KeyError:
             error["error"].append("The following values are required: id")
 
@@ -772,6 +748,7 @@ class GetLog(APIView):
 
         del x["_id"]
         del x["user"]
+        del x["traceback"]
         x["instance"] = str(x["instance"])
 
         return Response(x)
@@ -783,16 +760,15 @@ class GetUserLog(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        
+
         # Fetching logs
         x = log.find({"user": user.id})
 
-        rdata = {"user": user.username, "activities": []}
+        rdata = {"user": user.username}
+        
         for obj in x:
-            del obj["user"]
-            del obj["_id"]
-            obj["instance"]=str(obj["instance"])
-            rdata["activities"].append(obj)
+            rdata[str(obj["instance"])] = obj["logs"]
+
         return Response(rdata)
 
 
@@ -827,12 +803,55 @@ class GetDateLog(APIView):
             return Response(error)
 
         # Fetching logs
-        x = log.find({"user": user.id, data["date"]: {"$exists" : True}})
+        x = log.find({"user": user.id})
 
-        rdata = {"date": date, "activities": {}}
+        rdata = {"date": date}
         for obj in x:
-            rdata["activities"][str(obj["instance"])]=obj[data["date"]]
+            activities = []
+            for activity in obj["logs"]:
+                if activity[0] == data["date"]:
+                    activities.append(activity)
+            rdata[str(obj["instance"])] = activities
+
         return Response(rdata)
+
+
+class GetTraceback(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        error = {"error": []}
+        x = []
+
+        # Validating received data
+        try:
+            keys = ["id"]
+            regex = [text]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
+
+            instance = ObjectId(data["id"])
+            # Fetching logs
+            x = log.find_one({"instance": instance, "user": user.id})
+
+            if not x:
+                error["error"].append("Instance does not exist")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+
+        except KeyError:
+            error["error"].append("The following values are required: id")
+
+        except AssertionError:
+            pass
+
+        if error["error"]:
+            return Response(error)
+
+        return Response({"traceback": x["traceback"]})
 
 
 class Train(APIView):
@@ -848,10 +867,15 @@ class Train(APIView):
 
         # Validating received data
         try:
-            keys = ["id"]
-            regex = [text]
-            types = [str]
+            print(type(data["split"]))
+            keys = ["id", "split"]
+            regex = [text, number]
+            types = [str, str]
             error = validate(data, keys, regex, types, error)
+
+            if (int(data["split"]) < 10) or (int(data["split"]) > 100):
+                error["error"].append("Split must be between 10 and 100")
+                raise AssertionError()
 
             text_data = b""
             for chunk in request.data['x_train'].chunks():
@@ -865,7 +889,7 @@ class Train(APIView):
                 text_data += chunk
             text_data = text_data.decode()
 
-            y_train = np.array(pd.read_csv(StringIO(text_data)))[0]
+            y_train = np.array(pd.read_csv(StringIO(text_data))).reshape(1, -1)[0]
 
             # if len(x_train) != len(y_train):
             #     error["error"].append("Error in training data")
@@ -887,7 +911,7 @@ class Train(APIView):
 
         except AttributeError:
             error["error"].append("A text file must be uploaded")
-        
+
         except AssertionError:
             pass
 
@@ -895,13 +919,28 @@ class Train(APIView):
             return Response(error)
 
         # Training the model
-        cls = pickle.loads(base64.b64decode(x["pickle"]))
-        cls.fit(x_train, y_train)
+        if x["buffer"]:
+            model = pickle.loads(base64.b64decode(x["buffer"]))
+        else:    
+            model = pickle.loads(base64.b64decode(x["pickle"]))
 
+        training_cases = int(len(x_train) * int(data["split"]) / 100)
+
+        print(training_cases)
+
+        model.fit(x_train[:training_cases], y_train[:training_cases])
+
+        accuracy = 0
+        if len(x_train) - training_cases >= 1:
+            accuracy = model.score(x_train[training_cases:], y_train[training_cases:])
+        base64_bytes = base64.b64encode(pickle.dumps(model))
+        x["buffer"] = base64_bytes.decode('utf-8')
+
+        collection.update_one({"_id": instance, "user": user.id, "trash": False}, {"$set": {"buffer": x["buffer"]}})
         # Logging activity
-        log_instance("Train", instance)
+        log_instance("Train", "Trained with " + str(len(y_train)) + "cases", instance)
 
-        return Response({"success": "The model was trained successfully"})
+        return Response({"success": "The model was trained successfully", "accuracy": accuracy})
 
 
 class Test(APIView):
@@ -934,7 +973,7 @@ class Test(APIView):
                 text_data += chunk
             text_data = text_data.decode()
 
-            y_test = np.array(pd.read_csv(StringIO(text_data)))[0]
+            y_test = np.array(pd.read_csv(StringIO(text_data))).reshape(1, -1)[0]
 
             # if len(x_test) != len(y_test):
             #     error["error"].append("error in training data")
@@ -956,7 +995,7 @@ class Test(APIView):
 
         except AttributeError:
             error["error"].append("A text file must be uploaded")
-        
+
         except AssertionError:
             pass
 
@@ -964,14 +1003,18 @@ class Test(APIView):
             return Response(error)
 
         # Testing the model
-        cls = pickle.loads(base64.b64decode(x["pickle"]))
-        confidence = cls.score(x_test, y_test)
-        
+        if x["buffer"]:
+            model = pickle.loads(base64.b64decode(x["buffer"]))
+        else:    
+            model = pickle.loads(base64.b64decode(x["pickle"]))
+
+        confidence = model.score(x_test, y_test)
+
         res = collection.update_one({"_id": ObjectId(data["id"]), "user": user.id, "trash": False},
         {"$set":{"confidence": confidence}})
 
         # Logging activity
-        log_instance("Test", instance)
+        log_instance("Test", "Accuracy: " + str(confidence), instance)
 
         return Response({"confidence": confidence})
 
@@ -1017,7 +1060,7 @@ class Predict(APIView):
 
         except AttributeError:
             error["error"].append("A text file must be uploaded")
-        
+
         except AssertionError:
             pass
 
@@ -1025,10 +1068,183 @@ class Predict(APIView):
             return Response(error)
 
         # Predicting results
-        cls = pickle.loads(base64.b64decode(x["pickle"]))
-        y = cls.predict(x_predict)
+        if x["buffer"]:
+            model = pickle.loads(base64.b64decode(x["buffer"]))
+        else:    
+            model = pickle.loads(base64.b64decode(x["pickle"]))
+
+        y = model.predict(x_predict)
 
         # Logging activity
-        log_instance("Predict", instance)
+        log_instance("Predict", "Predictions done on " + str(len(x_predict)) + "cases", instance)
 
         return Response({"result": y})
+
+
+class Commit(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        error = {"error": []}
+        x = ''
+
+        # Validating received data
+        try:
+            keys = ["id", "description"]
+            regex = [text, text]
+            types = [str, str]
+            error = validate(data, keys, regex, types, error)
+
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id":instance, "user":user.id, "trash":False})
+            if not x:
+                error["error"].append("Instance does not exist")
+            elif not x["buffer"]:
+                error["error"].append("Nothing to commit")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+        except KeyError:
+            error["error"].append("The following values are required: id, description")
+        except AssertionError:
+            pass
+
+        if error["error"]:
+            return Response(error)
+
+        x["traceback"].append(x["pickle"])
+        collection.update_one({"_id":instance}, {"$set": {"description": data["description"], 
+                                                        "pickle": x["buffer"], 
+                                                        "traceback": x["traceback"], 
+                                                        "buffer": ""}})
+
+        # Logging activity
+        log_instance("Commit", data["description"], instance)
+
+
+        return Response({"commit": "success"})
+
+
+class Discard(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        error = {"error": []}
+        x = ''
+
+        # Validating received data
+        try:
+            keys = ["id"]
+            regex = [text]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
+
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id":instance, "user":user.id, "trash":False})
+            if not x:
+                error["error"].append("Instance does not exist")
+            elif not x["buffer"]:
+                error["error"].append("Nothing to discard")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+        except KeyError:
+            error["error"].append("The following values are required: id")
+        except AssertionError:
+            pass
+
+        if error["error"]:
+            return Response(error)
+
+        collection.update_one({"_id":instance}, {"$set": {"buffer": ""}})
+
+        # Logging activity
+        log_instance("Discard", "Discarded buffer model", instance)
+
+        return Response({"discard": "success"})
+
+
+class RollBack(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        error = {"error": []}
+        x_predict = []
+        x = ''
+
+        # Validating received data
+        try:
+            keys = ["id", "index"]
+            regex = [text, number]
+            types = [str, int]
+            error = validate(data, keys, regex, types, error)
+
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id":instance, "user":user.id, "trash":False})
+            if not x:
+                error["error"].append("Instance does not exist")
+            elif len(x["traceback"]) < data["index"]:
+                error["error"].append("Invalid rollback index")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+        except KeyError:
+            error["error"].append("The following values are required: id and index")
+        except AssertionError:
+            pass
+
+        if error["error"]:
+            return Response(error)
+
+        collection.update_one({"_id":instance}, {"$set": {"buffer": "", 
+                                                        "pickle": x["traceback"][data["index"]], 
+                                                        "traceback": x["traceback"][:data["index"]]}})
+        x = log.find_one({"instance":instance})
+        log.update_one({"instance":instance}, {"$set": {"traceback": x["traceback"][:data["index"]]}})
+
+        # Logging activity
+        log_instance("Discard", "Discarded buffer model", instance)
+
+        return Response({"discard": "success"})
+
+
+class GetStatus(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        error = {"error": []}
+        x = ''
+
+        # Validating received data
+        try:
+            keys = ["id"]
+            regex = [text]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
+
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id":instance, "user":user.id, "trash":False})
+            if not x:
+                error["error"].append("Instance does not exist")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+        except KeyError:
+            error["error"].append("The following values are required: id")
+        except AssertionError:
+            pass
+
+        if error["error"]:
+            return Response(error)
+
+        if x["buffer"]:
+            return Response({"status": "Model awaits commit"})
+        return Response({"status": "Nothing to commit"})

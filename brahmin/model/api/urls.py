@@ -21,7 +21,12 @@ urlpatterns = [
     path('getlog/', views.GetLog.as_view(), name="get_log"),
     path('getuserlog/', views.GetUserLog.as_view(), name="get_user_log"),
     path('getdatelog/', views.GetDateLog.as_view(), name="get_date_log"),
+    path('gettraceback/', views.GetTraceback.as_view(), name="gettraceback"),
     path('train/', views.Train.as_view(), name="train"),
     path('test/', views.Test.as_view(), name="test"),
     path('predict/', views.Predict.as_view(), name="predict"),
+    path('commit/', views.Commit.as_view(), name="commit"),
+    path('discard/', views.Discard.as_view(), name="discard"),
+    path('rollback/', views.RollBack.as_view(), name="rollback"),
+    path('getstatus/', views.GetStatus.as_view(), name="getstatus"),
 ]

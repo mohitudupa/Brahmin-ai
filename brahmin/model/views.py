@@ -7,7 +7,16 @@ from django.contrib import messages
 from django.contrib.messages import get_messages
 import re
 import pymongo
-
+import datetime
+from bson.objectid import ObjectId
+import bson
+import pandas as pd
+from io import StringIO
+import numpy as np
+from sklearn import *
+import base64
+import pickle
+import time
 
 number = r'^[0-9]+$'
 name = r'^[a-zA-Z\' -]+$'
@@ -27,14 +36,17 @@ log = db["log"]
 users = db["users"]
 
 # Function to log user activities
-def log_instance(action, instance):
+def log_instance(action, description, instance):
     x = log.find_one({"instance":instance})
     now = datetime.datetime.now()
-    key = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
-    if key not in x:
-        x[key] = []
-    x[key].append(action)
-    log.update_one({"instance":instance}, {"$set": {key: x[key]}})
+    date = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
+    x["logs"].append([date, action, description])
+    if action == "Commit":
+        index = len(x["traceback"])
+        x["traceback"].append([date, index, description])
+        log.update_one({"instance":instance}, {"$set": {"logs": x["logs"], "traceback": x["traceback"]}})
+    else:
+        log.update_one({"instance":instance}, {"$set": {"logs": x["logs"]}})
 
 
 # Function to validate posted data
@@ -50,17 +62,28 @@ def validate(data, keys, regex, types, error):
     return error
 
 
-# Updating the user collection
-def update_user_collection(id, name, version, instance_id, trash):
-    user_collection = users.find_one({"user": id})
+def add_user_collection(user_id, name, version, instance_id, state, docs):
+    user_collection = users.find_one({"user": user_id})
 
-    if name not in user_collection:
-        user_collection[name] = {}
-    if version not in user_collection[name]:
-        user_collection[name][version] = {"True": [], "False": []}
-    user_collection[name][version][str(trash)].append(instance_id)
+    if name not in user_collection[state]:
+        user_collection[state][name] = {}
+    if version not in user_collection[state][name]:
+        user_collection[state][name][version] = {}
 
-    users.update_one({"user": id}, {"$set": {name: user_collection[name]}})
+    user_collection[state][name][version] = [str(instance_id), docs]
+
+    users.update_one({"user": user_id}, {"$set": {state: user_collection[state]}})
+
+
+def del_user_collection(user_id, name, version, instance_id, state, docs):
+    user_collection = users.find_one({"user": user_id})
+
+    del user_collection[state][name][version]
+ 
+    if user_collection[state][name] == {}:
+        del user_collection[state][name]
+
+    users.update_one({"user": user_id}, {"$set": {state: user_collection[state]}})
 
 
 # Home page view
@@ -69,6 +92,7 @@ def home(request, *args, **kwargs):
         logged_in = False
         if request.user.is_authenticated:
             logged_in = True
+        print(request.user.id)
         return render(request, "model/home.html", {"errors": [], "logged_in": logged_in})
 
 
@@ -151,11 +175,10 @@ def register_form(request, *args, **kwargs):
         error = []
 
         try:
-            post_data_keys=['first_name','last_name','username','email','password','conf_password']
-            #keys = ["first_name", "last_name", "email", "password", "username"]
+            keys=['first_name','last_name','username','email','password','conf_password']
             regex = [name,name,text,email,password,password]
             types = [str, str, str, str, str, str]
-            error = validate(data, post_data_keys, regex, types, error)
+            error = validate(data, keys, regex, types, error)
 
             # Checking if username and email has already been taken
 
@@ -192,8 +215,8 @@ def register_form(request, *args, **kwargs):
         token.save()
 
         # Generate an entry for the user in the users collection
-        users.insert_one({"user": user.id})
-        
+        users.insert_one({"user": user.id, "running": {}, "deleted": {}})
+
         #authenticate user
         user = authenticate(request, username=data["username"], password=data["password"])
 
@@ -210,19 +233,508 @@ def register_form(request, *args, **kwargs):
 def dashboard(request, *args, **kwargs):
     if request.method == "GET":
         user = request.user
-        error = []
         final = {}
-        x = collection.find({"user":user.id,"trash":False})
+        errors = []
+
+        storage = get_messages(request)
+        for message in storage:
+            errors.append(str(message))
+
+        x = users.find_one({"user":user.id})
+
+        return render(request, "model/dashboard.html", {"errors": errors,"final": x["running"]})
+
+
+@login_required(login_url="model:login")
+def versionview(request,modelname):
+    if request.method == "GET":
+        user = request.user
+
+        #fetching version data
+        x=users.find_one({"user":user.id})
 
         # Preparing return html data
-        for i in x:
-            if i["name"] not in final:
-                #list = [set(version_names), no_of_versions, no_of_instances]
-                final[i["name"]] = [set(),0,0]
-            if i["version"] not in final[i["name"]][0]:
-                final[i["name"]][0].add(i["version"])
-                final[i["name"]][1] += 1
-            final[i["name"]][2]+=1
-        print(final)
+        final = x["running"][modelname]
 
-        return render(request, "model/dashboard.html", {"error": False,"final":final})
+        return render(request , "model/version.html", {"error":False,"final":final})
+
+
+@login_required(login_url="model:login")
+def trash(request, *args, **kwargs):
+    if request.method == "GET":
+        user = request.user
+        final = {}
+
+        errors = []
+        storage = get_messages(request)
+        for message in storage:
+            errors.append(str(message))
+
+        user_collection = users.find_one({"user":user.id})
+
+        x = user_collection["deleted"]
+        for model in x.keys():
+            for version in x[model].keys():
+                final[x[model][version][0]] = {"model": model, "version": version}
+
+        return render(request, "model/trash.html", {"errors": False, "final": final})
+
+@login_required(login_url="model:login")
+def restore(request,instance_id):
+    if request.method == "GET":
+        user = request.user
+        error = []
+        final = {}
+        try:
+
+            instance = ObjectId(instance_id)
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": True})
+
+            if not x:
+                messages.info(request, "instance does not exist")
+                return redirect("model:trash")
+
+        except bson.errors.InvalidId:
+            messages.info(request, "invalid instance ID")
+            return redirect("model:trash")
+
+            #error["error"].append("Invalid instance ID")
+
+        # Updating the epoc extension
+        new_version = x["version"].split("_rest_")[0] + "_rest_" + str(time.time())
+
+        # Restoring instance from trash
+        res = collection.update_one({"_id":instance,"user":user.id,"trash":True} ,
+        {"$set":{"trash":False,"last_modified":datetime.datetime.now(), "version": new_version}})
+
+        # Logging activity
+        log_instance("Restore", "Model restored from trash", instance)
+
+        # Updating the user collection
+        del_user_collection(user.id, x["name"], x["version"], instance, "deleted", x["docs"])
+        add_user_collection(user.id, x["name"], new_version, instance, "running", x["docs"])
+
+        return redirect("model:dashboard")
+
+
+@login_required(login_url="model:login")
+def delete_ins(request, instance_id):
+    if request.method == "GET":
+        user = request.user
+        error = []
+        final = {}
+        try:
+
+            instance = ObjectId(instance_id)
+            x = collection.find_one({"_id": instance,"user": user.id,"trash": False})
+
+            if not x:
+                return redirect("model:dashboard")
+
+        except bson.errors.InvalidId:
+            return redirect("model:dashboard")
+
+        # Updating the epoc extension
+        new_version = x["version"].split("_rest_")[0] + "_rest_" + str(time.time())
+
+        # Moving instance into trash
+        res = collection.update_one({"_id":ObjectId(instance_id),"user":user.id,"trash":False} ,
+        {"$set":{"trash":True,"last_modified":datetime.datetime.now(), "version": new_version}})
+
+        # Logging activity
+        log_instance("Delete", "Model moved to trash", instance)
+
+        # Updating the user collection
+        del_user_collection(user.id, x["name"], x["version"], instance, "running", x["docs"])
+        add_user_collection(user.id, x["name"], new_version, instance, "deleted", x["docs"])
+
+        return redirect("model:trash")
+
+
+
+@login_required(login_url="model:login")
+def instanceview(request,instance_id):
+    if request.method == "GET":
+        user = request.user
+        errors = []
+        storage = get_messages(request)
+        for message in storage:
+            errors.append(str(message))
+
+        final = {}
+        #return render(request, "model/instance.html", {"errors": False,"final":final})
+
+        try:
+            print(instance_id)
+            instance = ObjectId(instance_id)
+            # Fetching instance data
+            x = collection.find_one({"_id": instance, "trash": False})
+
+            if not x:
+                messages.info(request, "instance does not exist")
+                return redirect("model:dashboard")
+                #error["error"].append("Instance does not exist")
+
+            else:
+                if x["private"] and x["user"] != user.id:
+                    messages.info(request, "instance is private")
+                    return redirect("model:dashboard")
+                #    error["error"].append("Instance is private")
+
+        except bson.errors.InvalidId:
+            messages.info(request, "invalid Instance ID")
+            return redirect("model:dashboard")
+            #error["error"].append("Invalid instance ID")
+
+        status = False
+        if x["buffer"]:
+            status = "uncommited"
+
+        del x["user"]
+        del x["_id"]
+        del x["buffer"]
+        del x["traceback"]
+        del x["confidence"]
+        del x["description"]
+        del x["trash"]
+
+        x["id"] = str(instance)
+        model_detail = x
+
+        model_log = log.find_one({"instance":instance, "user":user.id})
+
+        #print(model_detail,model_full_log,model_partial_log)
+        return render(request, "model/instance.html", {"errors": errors, 
+                                                    "model_detail":model_detail, 
+                                                    "log":model_log["logs"][-10:], 
+                                                    "traceback": model_log["traceback"][-10:],
+                                                    "status": status,})
+
+
+
+@login_required(login_url="model:login")
+def instance_train(request):
+    if request.method == "POST":
+        user = request.user
+        data = request.POST
+        files = request.FILES
+        print(data)
+        print(files["x_train_file"])
+        error = []
+        final = {}
+        try:
+
+            print(data)
+            print(files)
+
+            keys=["instance_id", "split"]
+            regex = [text, number]
+            types = [str, str]
+            error = validate(data, keys, regex, types, error)
+
+            if (int(data["split"]) < 10) or (int(data["split"]) > 100):
+                error["error"].append("Split must be between 10 and 100")
+                raise AssertionError()
+
+            text_data = b""
+            for chunk in files['x_train_file'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+            x_train = np.matrix(pd.read_csv(StringIO(text_data)))
+
+            text_data = b""
+            for chunk in files['y_train_file'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+            y_train = np.array(pd.read_csv(StringIO(text_data))).reshape(1, -1)[0]
+
+            instance = ObjectId(data["instance_id"])
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
+
+            if not x:
+                return redirect("model:dashboard")
+
+        except KeyError:
+            messages.info(request, "Invalid form submission")
+            return redirect("model:dashboard")
+        except AssertionError:
+            messages.info(request, error["error"])
+            return redirect("model:instanceview", data["instance_id"])
+        except UnicodeDecodeError:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:instanceview", data["instance_id"])
+        except AttributeError:
+            messages.info(request, "A text file must be uploaded")
+            return redirect("model:instanceview", data["instance_id"])
+        except bson.errors.InvalidId:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:dashboard")
+
+
+        # Training the model
+        if x["buffer"]:
+            model = pickle.loads(base64.b64decode(x["buffer"]))
+        else:    
+            model = pickle.loads(base64.b64decode(x["pickle"]))
+
+        training_cases = int(len(x_train) * int(data["split"]) / 100)
+
+        print(training_cases)
+
+        model.fit(x_train[:training_cases], y_train[:training_cases])
+
+        accuracy = 0
+        if len(x_train) - training_cases >= 1:
+            accuracy = model.score(x_train[training_cases:], y_train[training_cases:])
+        base64_bytes = base64.b64encode(pickle.dumps(model))
+        x["buffer"] = base64_bytes.decode('utf-8')
+
+        collection.update_one({"_id": instance, "user": user.id, "trash": False}, {"$set": {"buffer": x["buffer"]}})
+        # Logging activity
+        log_instance("Train", "Trained with " + str(len(y_train)) + "cases", instance)
+
+        messages.info(request, "Model trained successfully")
+        messages.info(request, "Accuracy: " + str(accuracy))
+
+        return redirect("model:instanceview", data["instance_id"])        
+
+
+@login_required(login_url="model:login")
+def instance_test(request):
+    if request.method == "POST":
+        user = request.user
+        data = request.POST
+        files = request.FILES
+        error = []
+        final = {}
+        try:
+
+            keys=["instance_id"]
+            regex = [text]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
+
+            print(data)
+
+            text_data = b""
+            for chunk in files['x_test_file'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+            x_test = np.matrix(pd.read_csv(StringIO(text_data)))
+
+            text_data = b""
+            for chunk in files['y_test_file'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+            y_test = np.array(pd.read_csv(StringIO(text_data))).reshape(1, -1)[0]
+
+            instance = ObjectId(data["instance_id"])
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
+
+            if not x:
+                return redirect("model:dashboard")
+        except KeyError:
+            messages.info(request, "Invalid form submission")
+            return redirect("model:dashboard")
+        except AssertionError:
+            messages.info(request, error["error"])
+            return redirect("model:instanceview", data["instance_id"])
+        except UnicodeDecodeError:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:instanceview", data["instance_id"])
+        except AttributeError:
+            messages.info(request, "A text file must be uploaded")
+            return redirect("model:instanceview", data["instance_id"])
+        except bson.errors.InvalidId:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:dashboard")
+
+        # Testing the model
+        if x["buffer"]:
+            model = pickle.loads(base64.b64decode(x["buffer"]))
+        else:    
+            model = pickle.loads(base64.b64decode(x["pickle"]))
+
+        confidence = model.score(x_test, y_test)
+
+        res = collection.update_one({"_id": instance, "user": user.id, "trash": False},
+        {"$set":{"confidence": confidence}})
+
+        # Logging activity
+        log_instance("Test", "Accuracy: " + str(confidence), instance)
+
+        messages.info(request, "Accuracy: " + str(confidence))
+
+        return redirect("model:instanceview",data["instance_id"])
+
+
+@login_required(login_url="model:login")
+def instance_predict(request):
+    if request.method == "POST":
+        user = request.user
+        data = request.POST
+        files = request.FILES
+        #print(data)
+        #print(files["x_test_file"])
+        error = []
+        final = {}
+        try:
+
+            keys=["instance_id"]
+            regex = [text]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
+
+            text_data = b""
+            for chunk in files['x_predict_file'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+            x_predict = np.matrix(pd.read_csv(StringIO(text_data)))
+
+            instance = ObjectId(data["instance_id"])
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
+
+            if not x:
+                return redirect("model:dashboard")
+
+        except KeyError:
+            messages.info(request, "Invalid form submission")
+            return redirect("model:dashboard")
+        except AssertionError:
+            messages.info(request, error["error"])
+            return redirect("model:instanceview", data["instance_id"])
+        except UnicodeDecodeError:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:instanceview", data["instance_id"])
+        except AttributeError:
+            messages.info(request, "A text file must be uploaded")
+            return redirect("model:instanceview", data["instance_id"])
+        except bson.errors.InvalidId:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:dashboard")
+
+        # Predicting results
+        if x["buffer"]:
+            model = pickle.loads(base64.b64decode(x["buffer"]))
+        else:    
+            model = pickle.loads(base64.b64decode(x["pickle"]))
+
+        y = model.predict(x_predict)
+
+        # Logging activity
+        log_instance("Predict", "Predictions done on " + str(len(x_predict)) + "cases", instance)
+
+        messages.info(request, "Results: " + str(y))
+
+        return redirect("model:instanceview",data["instance_id"])
+
+
+@login_required(login_url="model:login")
+def commit(request, instance_id):
+    if request.method == "POST":
+        user = request.user
+        data = request.POST
+        error = []
+        final = {}
+        print(data)
+        try:
+
+            keys=["description"]
+            regex = [text]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
+
+            instance = ObjectId(instance_id)
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
+
+            if not x:
+                return redirect("model:dashboard")
+            elif not x["buffer"]:
+                return redirect("model:deshboard")
+
+        except KeyError:
+            messages.info(request, "Invalid form submission")
+            return redirect("model:dashboard")
+        except AssertionError:
+            messages.info(request, error["error"])
+            return redirect("model:instanceview", data["instance_id"])
+        except bson.errors.InvalidId:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:dashboard")
+
+        x["traceback"].append(x["pickle"])
+        collection.update_one({"_id":instance}, {"$set": {"description": data["description"], 
+                                                        "pickle": x["buffer"], 
+                                                        "traceback": x["traceback"], 
+                                                        "buffer": ""}})
+
+        # Logging activity
+        log_instance("Commit", data["description"], instance)
+
+        messages.info(request, "Commit successful")
+
+        return redirect("model:instanceview",instance_id)
+
+
+@login_required(login_url="model:login")
+def discard(request, instance_id):
+    if request.method == "GET":
+        user = request.user
+        error = []
+        final = {}
+        try:
+
+            instance = ObjectId(instance_id)
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
+
+            if not x:
+                return redirect("model:dashboard")
+            elif not x["buffer"]:
+                return redirect("model:deshboard")
+
+        except bson.errors.InvalidId:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:dashboard")
+
+        collection.update_one({"_id":instance}, {"$set": {"buffer": ""}})
+
+        # Logging activity
+        log_instance("Discard", "Discarded buffer model", instance)
+
+        messages.info(request, "Discard successful")
+
+        return redirect("model:instanceview", instance_id)
+
+
+@login_required(login_url="model:login")
+def rollback(request, instance_id, index):
+    if request.method == "GET":
+        user = request.user
+        error = []
+        final = {}
+        try:
+
+            instance = ObjectId(instance_id)
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
+
+            if not x:
+                return redirect("model:dashboard")
+            elif len(x["traceback"]) < int(index):
+                error["error"].append("Invalid rollback index")
+
+        except bson.errors.InvalidId:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:dashboard")
+
+        collection.update_one({"_id":instance}, {"$set": {"buffer": "", 
+                                                        "pickle": x["traceback"][int(index)], 
+                                                        "traceback": x["traceback"][:int(index)]}})
+        x = log.find_one({"instance":instance})
+        log.update_one({"instance":instance}, {"$set": {"traceback": x["traceback"][:int(index)]}})
+
+        # Logging activity
+        log_instance("Discard", "Discarded buffer model", instance)
+
+        messages.info(request, "Rollback successful")
+
+        return redirect("model:instanceview", instance_id)

@@ -1,0 +1,200 @@
+{% extends "model/base.html" %}
+{% load staticfiles %}
+
+{% block style %}
+<style>
+
+
+ body {
+
+   background-color: #212121 ;
+}
+</style>
+{% endblock %}
+
+
+{% block title %}
+    Trash
+{% endblock %}
+
+
+{% block nav %}
+    <li>
+        <a href="{% url 'model:home' %}" class="black-text">Home</a>
+    </li>
+    <li>
+        <a href="#api" class="black-text">Api</a>
+    </li>
+    <li>
+        <a href="{% url 'model:logout' %}" class="black-text">logout</a>
+    </li>
+{% endblock %}
+
+
+{% block sidenav %}
+    <li>
+        <a class="black-text">link1</a>
+    </li>
+    <li>
+        <a  class="black-text">link2</a>
+    </li>
+    <li>
+        <a  class="black-text">link3</a>
+    </li>
+{% endblock %}
+
+
+{% block body %}
+
+<div class="card-panel white">
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque maximus placerat congue. Fusce molestie ex a mauris gravida euismod. Nunc ultrices, lectus eu auctor viverra, metus dolor pellentesque dui, vel ultrices libero libero hendrerit felis. Vivamus vitae risus vitae felis rutrum pharetra ac non metus
+</div>
+
+
+
+
+<div class="modelcards">
+       <div class = "row">
+          {% for instance,details in final.items %}
+          <div class = "col s12 m4" >
+            <div class="card-panel  deep-orange lighten-4 ">
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text"><b>Instance</b> - {{ instance }}</span>
+                <p>{{ details.model }} - {{details.version}}</p>
+
+               </div>
+              </a>
+
+               <div class = "card-action">
+                  <a href="{% url 'model:restore' instance %}" class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">restore</i></a>
+               </div>
+
+              </div>
+           </div>
+            {% endfor %}
+
+         <!--<div class = "col s12 m4" >
+            <div class="card-panel deep-orange lighten-4">
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">Model 1</span>
+                  <p class="black-text">trashed items</p>
+               </div>
+              </a>
+
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">restore</i></button>
+               </div>
+
+              </div>
+           </div>
+
+
+
+
+        <div class = "col s12 m4" >
+            <div class="card-panel deep-orange lighten-4">
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">Model 1</span>
+                  <p class="black-text">trashed items</p>
+               </div>
+              </a>
+
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">restore</i></button>
+               </div>
+
+              </div>
+           </div>
+
+
+       </div>
+
+      <div class="row">
+
+         <div class = "col s12 m4" >
+            <div class="card-panel deep-orange lighten-4">
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">Model 1</span>
+                  <p class="black-text">trashed items</p>
+               </div>
+              </a>
+
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">restore</i></button>
+               </div>
+
+              </div>
+           </div>
+
+
+         <div class = "col s12 m4" >
+            <div class="card-panel deep-orange lighten-4">
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">Model 1</span>
+                  <p class="black-text">trashed items</p>
+               </div>
+              </a>
+
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">restore</i></button>
+               </div>
+
+              </div>
+           </div>
+
+
+         <div class = "col s12 m4" >
+            <div class="card-panel deep-orange lighten-4">
+              <a href="#">
+               <div class = "card-content">
+               <span class="card-title black-text">Model 1</span>
+                  <p class="black-text">trashed items</p>
+               </div>
+              </a>
+
+               <div class = "card-action">
+                  <button class = "btn waves-effect waves-light blue-grey ">
+                     <i class = "material-icons">restore</i></button>
+               </div>
+
+              </div>
+           </div> -->
+         </div>
+        </div>
+
+
+    <div class="card-panel white">
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque maximus placerat congue. Fusce molestie ex a mauris gravida euismod. Nunc ultrices, lectus eu auctor viverra, metus dolor pellentesque dui, vel ultrices libero libero hendrerit felis. Vivamus vitae risus vitae felis rutrum pharetra ac non metus
+</div>
+
+{% endblock %}
+
+
+
+
+{% block footer %}
+    <li><a class="grey-text text-lighten-3" href="#!">Link 1</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 2</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 3</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 4</a></li>
+{% endblock %}
+
+
+
+{% block scripts %}
+
+<script type = "text/javascript"
+         src = "https://code.jquery.com/jquery-2.1.1.min.js"></script>
+
+
+{% endblock%}

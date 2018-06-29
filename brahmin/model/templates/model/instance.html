@@ -1,0 +1,373 @@
+{% extends "model/base.html" %}
+{% load staticfiles %}
+
+{% block style %}
+{% endblock %}
+
+
+{% block title %}
+    Instance
+{% endblock %}
+
+{% block nav %}
+    <li>
+        <a href="{% url 'model:home' %}" class="black-text">Home</a>
+    </li>
+    <li>
+        <a href="{% url 'model:logout' %}" class="black-text">logout</a>
+    </li>
+{% endblock %}
+
+{% block sidenav %}
+    <li>
+        <a href="{% url 'model:home' %}" class="black-text">Home</a>
+    </li>
+    <li>
+        <a href="{% url 'model:logout' %}" class="black-text">logout</a>
+    </li>
+{% endblock %}
+
+
+{% block body %}
+
+
+<div id="modal1" class="modal">
+    <section class="section indigo">
+        <div class="container">
+            <div class="row">
+                <div class="col s12 m12 l12">
+                    <div class="card white" style="overflow: auto">
+                        <div class="card-content">
+                            <span class="card-title center">Test</span>
+                            <div>
+                                <form action="{% url 'model:instance_test' %}" method="post" enctype="multipart/form-data" class="col s12" id="fileupload2">
+                                    {% csrf_token %}
+                                    <div class="row">
+                                        <div class="input-field col s12" style="display: none;">
+                                            <i class="material-icons prefix">mode_edit</i>
+                                            <input id="instance_id" name="instance_id" type="text" class="validate" value="{{ model_detail.id }}" required>
+                                            <label for="instance_id">Instance Id</label>
+                                        </div>
+                                    </div>
+                                    <div class = "row">
+                                        <div class = "file-field input-field">
+                                            <div class = "btn waves-effect waves-light blue-grey darken-4 lighten-1">Browse
+                                                <i class="material-icons right">file_upload</i>
+                                                <input type = "file" name="x_test_file" required/>
+                                            </div>
+
+                                            <div class = "file-path-wrapper">
+                                                <input class = "file-path validate" type = "text" name="x_test_name" id="x_test_name" placeholder="Upload x_test csv"/>
+                                            </div>
+                                        </div>
+                                    </div><!--end of row -->
+                                    <div class = "row">
+                                        <div class = "file-field input-field">
+                                            <div class = "btn waves-effect waves-light blue-grey darken-4 lighten-1">Browse
+                                                <i class="material-icons right">file_upload</i>
+                                                <input type = "file" name="y_test_file" required/>
+                                            </div>
+                                            <div class = "file-path-wrapper">
+                                                <input class = "file-path validate" type = "text" name="y_test_name" id="y_test_name" placeholder="Upload y_test csv"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <button class="btn waves-effect waves-light blue-grey darken-4 lighten-1 right" type="submit" name="submit" id="form_submit" onclick="return validate()">Submit
+                                            <i class="material-icons right">send</i>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>        
+    </section>
+</div>
+
+
+<!--modal for predict-->
+<div id="modal2" class="modal">
+    <section class="section indigo">
+        <div class="container">
+            <div class="row">
+                <div class="col s12 m12 l12">
+                    <div class="card white" style="overflow: auto">
+                        <div class="card-content">
+                            <span class="card-title center">Predict</span>
+                            <form action="{% url 'model:instance_predict' %}" method="post" enctype="multipart/form-data" class="col s12" id="fileupload1">
+                                {% csrf_token %}
+                                  <div class="row">
+                                      <div class="input-field col s12" style="display: none;">
+                                        <i class="material-icons prefix">mode_edit</i>
+                                        <input id="instance_id" type="text" name="instance_id" class="validate" value="{{ model_detail.id }}" required>
+                                        <label for="instance_id">Instance Id</label>
+                                      </div>
+                                  </div>
+                                  <div class="row">
+                                      <div class = "file-field input-field">
+                                        <div class = "btn waves-effect waves-light blue-grey darken-4 lighten-1">Browse
+                                            <i class="material-icons right">file_upload</i>
+                                            <input type = "file" name="x_predict_file" required/>
+                                        </div>
+
+                                        <div class = "file-path-wrapper">
+                                            <input class = "file-path validate" name="x_predict_name" type = "text" placeholder="Upload x_predict csv" />
+                                        </div>
+                                      </div>
+                                  </div><!--end of row -->
+                                  <div class="row">
+                                    <button class="btn waves-effect waves-light blue-grey darken-4 lighten-1 right" type="submit" name="submit" id="form_submit2" onclick="return validate()">Submit
+                                      <i class="material-icons right">send</i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!--modal for Train-->
+<div id="modal3" class="modal">
+    <section class="section indigo">
+        <div class="container">
+            <div class="row">
+                <div class="col s12 m12 l12">
+                    <div class="card white" style="overflow: auto">
+                        <div class="card-content">
+                            <span class="card-title center">Train</span>
+                            <form action="{% url 'model:instance_train' %}" method="post" enctype="multipart/form-data" class="col s12" id="fileupload2">
+                                {% csrf_token %}
+                                <div class="row">
+                                    <div class="input-field col s12 m12 l12" style="display: none;">
+                                        <i class="material-icons prefix">mode_edit</i>
+                                        <input id="instance_id" name="instance_id" type="text" class="validate" value="{{ model_detail.id }}" required>
+                                        <label for="instance_id">Instance Id</label>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <p class="range-field">
+                                        <input type="range" name="split" id="split" min="50" max="100" />
+                                        <label for="split">Split</label>
+                                    </p>
+                                </div>
+                                <div class = "row">
+                                    <div class = "file-field input-field">
+                                        <div class = "btn waves-effect waves-light blue-grey darken-4 lighten-1">Browse
+                                            <i class="material-icons right">file_upload</i>
+                                            <input type = "file" name="x_train_file" required/>
+                                        </div>
+                                        <div class = "file-path-wrapper">
+                                            <input class = "file-path validate" type = "text" name="x_train_name" id="x_train_name" placeholder="Upload x_train csv"/>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class = "row">
+                                    <div class = "file-field input-field">
+                                        <div class = "btn waves-effect waves-light blue-grey darken-4 lighten-1">Browse
+                                            <i class="material-icons right">file_upload</i>
+                                            <input type = "file" name="y_train_file" required/>
+                                        </div>
+
+                                        <div class = "file-path-wrapper">
+                                            <input class = "file-path validate" type = "text" name="y_train_name" id="y_train_name" placeholder="Upload y_train csv"/>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <button class="btn waves-effect waves-light blue-grey darken-4 lighten-1 right" type="submit" name="submit1" id="form_submit" onclick="return validate()">Submit
+                                        <i class="material-icons right">send</i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!--Commit-->
+<div id="modal4" class="modal">
+    <section class="section indigo">
+        <div class="container">
+            <div class="row">
+                <div class="col s12 m12 l12">
+                    <div class="card white" style="overflow: auto">
+                        <div class="card-content">
+                            <span class="card-title center">Commit</span>
+                            <div>
+                                <form action="{% url 'model:commit' model_detail.id %}" method="post" enctype="multipart/form-data" class="col s12" id="fileupload2">
+                                    {% csrf_token %}
+                                    <div class="row">
+                                        <div class="input-field col s12 m12 l12">
+                                            <i class="material-icons prefix">mode_edit</i>
+                                            <input id="description" name="description" type="text" class="validate"required>
+                                            <label for="description">Description</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <button class="btn waves-effect waves-light blue-grey darken-4 lighten-1 right" type="submit" name="submit" id="form_submit" onclick="return validate()">Submit
+                                            <i class="material-icons right">send</i>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>        
+    </section>
+</div>
+
+<!--Discard-->
+<div id="modal5" class="modal">
+    <section class="section indigo">
+        <div class="container">
+            <div class="row">
+                <div class="col s12 m12 l12">
+                    <div class="card white" style="overflow: auto">
+                        <div class="card-content">
+                            <span class="card-title center">Are you sure you want to discard changes?</span><br />
+                            <div class="container center">
+                                <div class="row">
+                                    <a href="{% url 'model:discard' model_detail.id %}" class = "btn waves-effect waves-light black right">Discard</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>        
+    </section>
+</div>
+
+<section class="section indigo">
+    <div style="padding-left: 5%; padding-right: 5%">
+        <div class="row">
+            <div class="col s12 m8 l8">
+                <div class="row">
+                    <div class="col s12">
+                        <div class="card white">
+                            <div class="card-content black-text" style="word-wrap:break-word; height:auto">
+                                <span class="card-title">Model - {{ model_detail.id }}</span>
+                                <p>
+                                    {% for key,value in model_detail.items %}
+                                        {{ key }} : {{ value}}
+                                        <br />
+                                    {% endfor %}
+                                </p>
+                            </div>
+                            <div class="card-action">
+                                <a href="{% url 'model:delete_ins' model_detail.id %}">Delete</a>
+                                <a onclick="modal3.open(); M.updateTextFields();">Train</a>
+                                <a onclick="modal1.open(); M.updateTextFields();">Test</a>
+                                <a onclick="modal2.open(); M.updateTextFields();">Predict</a>
+                                {% if status %}
+                                    <a onclick="modal4.open(); M.updateTextFields();">Commit</a>
+                                    <a onclick="modal5.open(); M.updateTextFields();">Discard</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col s12">
+                        <div class="card">
+                            <div class="card-content">
+                                <div class="card-title">Trace Back</div>
+                                <div class="row">
+                                    {% for history in traceback %}
+                                        <div class="col s6 m3 l3">
+                                            <div class="card-panel blue-grey darken-1 white-text">
+                                                <p>
+                                                    {{ history.0 }}<br />
+                                                    commit id: {{ history.1 }}<br />
+                                                    description: {{ history.2 }}
+                                                </p><br />
+                                                <div class="row">
+                                                    <a href="{% url 'model:rollback' model_detail.id history.1 %}" class = "btn waves-effect waves-light black right">Rollback</a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>          
+            </div>
+            <div class="col s12 m4 l4">
+                <div class="card white">
+                    <div class="card-content" style="word-wrap:break-word; height:auto">
+                        <span class="card-title">Model Logs</span>
+                        <div class="container">
+                            <div class="section">
+                                <div class="row">
+                                    <div class="col s12 center">
+                                        <div class="left-align light">
+                                            <ul class="collapsible" data-collapsible="accordion">
+                                                {% for activity in log %}
+                                                    <li>
+                                                        <div class="collapsible-header"><i class="material-icons">event</i>{{ activity.1 }}</div>
+                                                        <div class="collapsible-body">
+                                                            <span>
+                                                                {{ activity.0 }} - {{ activity.2 }}
+                                                            </span>
+                                                        </div>
+                                                    </li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class = "card-action">
+                        <div class="row">
+                            <a href="#" class = "btn waves-effect waves-light black right"> More
+                                <i class = "material-icons right">details</i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}
+
+{% block footer %}
+    <li><a class="grey-text text-lighten-3" href="#!">Link 1</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 2</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 3</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 4</a></li>
+{% endblock %}
+
+{% block script %}
+        <script>
+            // Collapsable
+            var elems = document.querySelectorAll('.collapsible');
+            var instances = M.Collapsible.init(elems, {});
+
+            // Model
+            const modal = document.querySelectorAll('.modal');
+            instances = M.Modal.init(modal, {});
+
+            // Modal Open
+            const modal1 = M.Modal.getInstance(document.querySelector("#modal1"));
+            const modal2 = M.Modal.getInstance(document.querySelector("#modal2"));
+            const modal3 = M.Modal.getInstance(document.querySelector("#modal3"));
+            const modal4 = M.Modal.getInstance(document.querySelector("#modal4"));
+            const modal5 = M.Modal.getInstance(document.querySelector("#modal5"));
+        </script>
+{% endblock %}
