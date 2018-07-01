@@ -1,0 +1,131 @@
+{% extends "model/base.html" %}
+{% load staticfiles %}
+
+{% block style %}
+    <style>
+        .icontainer{
+            background-image: url("{% static 'model/images/slider1.jpg' %}");
+        }
+    </style>
+{% endblock %}
+
+{% block title %}
+    Upload
+{% endblock %}
+
+{% block nav %}
+    <li>
+        <a href="{% url 'model:home' %}" class="black-text">Home</a>
+    </li>
+    <li>
+        <a href="{% url 'model:trash' %}" class="black-text">Bin</a>
+    </li>
+    <li>
+        <a href="{% url 'model:logout' %}" class="black-text">Logout</a>
+    </li>
+{% endblock %}
+
+{% block sidenav %}
+    <li>
+        <a href="{% url 'model:home' %}" class="black-text">Home</a>
+    </li>
+    <li>
+        <a href="{% url 'model:trash' %}" class="black-text">Bin</a>
+    </li>
+    <li>
+        <a href="{% url 'model:logout' %}" class="black-text">Logout</a>
+    </li>
+{% endblock %}
+
+
+{% block body %}
+        <div class="section indigo">
+            <div class="container">
+                <div class="row">
+                    <div class="col s12 m12 l12">
+                        <div class="card white">
+                            <div class="card-content black-text">
+                                <span class="card-title">Upload</span>
+                                <div class="row">
+                                    <div class="col s12 m12 l12">
+                                        <form action="{% url 'model:upload_form' %}" method="post" class="col s12" id="upload">
+                                            {% csrf_token %}
+                                            <div class="row">
+                                                <div class="input-field col s12 m12 l12">
+                                                    <i class="material-icons prefix">mode_edit</i>
+                                                    <input id="name" name="name" type="text" class="validate" required>
+                                                    <label for="name">Model Name</label>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="input-field col s12 m12 l12">
+                                                    <i class="material-icons prefix">mode_edit</i>
+                                                    <input id="version" name="version" type="text" class="validate" required>
+                                                    <label for="version">Version</label>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                              <div class="input-field col s12">
+                                                  <i class="material-icons prefix">backup</i>
+                                                  <textarea id="pickle" name="pickle" class="materialize-textarea" class="validate" required></textarea>
+                                                  <label for="pickle">Pickle Data</label>
+                                              </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col s12 center">
+                                                  <label style="font-size:medium;">Private : </label>
+                                                  <label>
+                                                  <input class="with-gap" name="private" value="True" type="radio" checked />
+                                                  <span>True</span>
+                                                  </label>
+                                                  <label>
+                                                  <input class="with-gap" name="private" value="False" type="radio" />
+                                                  <span>False</span>
+                                                  </label>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="input-field col s12">
+                                                  <i class="material-icons prefix">comment</i>
+                                                  <textarea id="docs" name="docs" class="materialize-textarea" class="validate" required></textarea>
+                                                  <label for="docs">Documentation</label>
+                                                </div>
+                                            </div>
+                                            <button class="btn waves-effect waves-light black" type="submit" name="submit" id="form_submit" onclick="return validate()">Submit
+                                                <i class="material-icons right">send</i>
+                                            </button>
+                                        </form>
+                                        <br/><br/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <!-- Info 1 -->
+    <section id="api" class="section blue darken-2 center scrollspy">
+        <div class="container">
+             <div class="row">
+                <div class="col s12 m8 l8 section">
+                        <span><i class="material-icons large white-text center">short_text</i></span><br/>
+                        <span class="white-text light flow-text">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Voluptatibus veniam, vel delectus. Quaerat dolor quas animi aut temporibus voluptatibus distinctio, tempore possimus maxime a ipsa rerum provident iusto cum, ex minus itaque sapiente.</span><br/><br/><br/>
+                </div>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}
+
+{% block footer %}
+    <li><a class="grey-text text-lighten-3" href="#!">Link 1</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 2</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 3</a></li>
+    <li><a class="grey-text text-lighten-3" href="#!">Link 4</a></li>
+{% endblock %}
+
+{% block script %}
+
+{% endblock %}
