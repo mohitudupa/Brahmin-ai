@@ -79,7 +79,7 @@ def del_user_collection(user_id, name, version, instance_id, state, docs):
     user_collection = users.find_one({"user": user_id})
 
     del user_collection[state][name][version]
- 
+
     if user_collection[state][name] == {}:
         del user_collection[state][name]
 
@@ -258,6 +258,85 @@ def versionview(request,modelname):
 
         return render(request , "model/version.html", {"error":False,"final":final})
 
+@login_required(login_url="model:login")
+def upload(request):
+    if request.method == "GET":
+        errors = []
+        storage = get_messages(request)
+        for message in storage:
+            errors.append(str(message))
+        return render(request, "model/upload.html", {"errors": errors})
+
+@login_required(login_url="model:login")
+def upload_form(request):
+    if request.method == "POST":
+        data = request.POST
+        user = request.user
+        user_collection = users.find_one({"user": user.id})
+        print(data)
+        error = []
+        #validating html data
+        try:
+            keys = ["name", "version", "pickle", "private", "docs"]
+            regex = [text, text, text, boolean, text]
+            types = [str, str, str, str, str]
+            error = validate(data, keys, regex, types, error)
+
+            try:
+                obj = pickle.loads(base64.b64decode(data['pickle']))
+                print("hello")
+                """if str(type(obj))[8:-2].split(".")[0] != "sklearn":
+                    error["error"].append("Not of type sklearn")
+                """
+            except:
+                messages.info(request, "invalid pickle")
+                return redirect("model:upload")
+            try:
+                user_collection["running"][data["name"]][data["version"]]
+                messages.info(request, "Model conflict occoured")
+                return redirect("model:upload")
+            except KeyError:
+                pass
+
+        except AssertionError:
+            messages.info(request, error[-1])
+            return redirect("model:upload")
+
+        newmodel = {
+                    "user":user.id,
+                    "name":data["name"],
+                    "version":data["version"],
+                    "date_created":datetime.datetime.now(),
+                    "last_modified":datetime.datetime.now(),
+                    "private":eval(data["private"]),
+                    "trash":False,
+                    "buffer": "",
+                    "traceback": [],
+                    "pickle":data["pickle"],
+                    "confidence":0.0,
+                    "docs":data["docs"]
+                    }
+        #Saving new instance
+        pid=collection.insert_one(newmodel).inserted_id
+
+        # Creating instance log
+        now = datetime.datetime.now()
+        date = "{0:02}-{1:02}-{2:04}".format(now.day, now.month, now.year)
+        newlog = {
+                    "instance": pid,
+                    "user": user.id,
+                    "logs": [[date, "Upload", "Model uploaded by user: " + user.username]],
+                    "traceback": [],
+        }
+        # Saving instance log
+        log.insert_one(newlog).inserted_id
+
+        # Updating the user collection
+        add_user_collection(user.id, newmodel["name"], newmodel["version"], pid, "running", newmodel["docs"])
+
+        return redirect("model:dashboard")
+
+
 
 @login_required(login_url="model:login")
 def trash(request, *args, **kwargs):
@@ -395,7 +474,7 @@ def instanceview(request,instance_id):
         del x["buffer"]
         del x["traceback"]
         del x["confidence"]
-        del x["description"]
+        #del x["description"]
         del x["trash"]
 
         x["id"] = str(instance)
@@ -404,9 +483,9 @@ def instanceview(request,instance_id):
         model_log = log.find_one({"instance":instance, "user":user.id})
 
         #print(model_detail,model_full_log,model_partial_log)
-        return render(request, "model/instance.html", {"errors": errors, 
-                                                    "model_detail":model_detail, 
-                                                    "log":model_log["logs"][-10:], 
+        return render(request, "model/instance.html", {"errors": errors,
+                                                    "model_detail":model_detail,
+                                                    "log":model_log["logs"][-10:],
                                                     "traceback": model_log["traceback"][-10:],
                                                     "status": status,})
 
@@ -474,7 +553,7 @@ def instance_train(request):
         # Training the model
         if x["buffer"]:
             model = pickle.loads(base64.b64decode(x["buffer"]))
-        else:    
+        else:
             model = pickle.loads(base64.b64decode(x["pickle"]))
 
         training_cases = int(len(x_train) * int(data["split"]) / 100)
@@ -496,7 +575,7 @@ def instance_train(request):
         messages.info(request, "Model trained successfully")
         messages.info(request, "Accuracy: " + str(accuracy))
 
-        return redirect("model:instanceview", data["instance_id"])        
+        return redirect("model:instanceview", data["instance_id"])
 
 
 @login_required(login_url="model:login")
@@ -552,7 +631,7 @@ def instance_test(request):
         # Testing the model
         if x["buffer"]:
             model = pickle.loads(base64.b64decode(x["buffer"]))
-        else:    
+        else:
             model = pickle.loads(base64.b64decode(x["pickle"]))
 
         confidence = model.score(x_test, y_test)
@@ -616,7 +695,7 @@ def instance_predict(request):
         # Predicting results
         if x["buffer"]:
             model = pickle.loads(base64.b64decode(x["buffer"]))
-        else:    
+        else:
             model = pickle.loads(base64.b64decode(x["pickle"]))
 
         y = model.predict(x_predict)
@@ -663,9 +742,9 @@ def commit(request, instance_id):
             return redirect("model:dashboard")
 
         x["traceback"].append(x["pickle"])
-        collection.update_one({"_id":instance}, {"$set": {"description": data["description"], 
-                                                        "pickle": x["buffer"], 
-                                                        "traceback": x["traceback"], 
+        collection.update_one({"_id":instance}, {"$set": {"description": data["description"],
+                                                        "pickle": x["buffer"],
+                                                        "traceback": x["traceback"],
                                                         "buffer": ""}})
 
         # Logging activity
@@ -726,8 +805,8 @@ def rollback(request, instance_id, index):
             messages.info(request, "Invalid instance ID")
             return redirect("model:dashboard")
 
-        collection.update_one({"_id":instance}, {"$set": {"buffer": "", 
-                                                        "pickle": x["traceback"][int(index)], 
+        collection.update_one({"_id":instance}, {"$set": {"buffer": "",
+                                                        "pickle": x["traceback"][int(index)],
                                                         "traceback": x["traceback"][:int(index)]}})
         x = log.find_one({"instance":instance})
         log.update_one({"instance":instance}, {"$set": {"traceback": x["traceback"][:int(index)]}})

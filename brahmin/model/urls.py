@@ -15,6 +15,8 @@ urlpatterns = [
     path('register/form', views.register_form, name="register_form"),
     path('dashboard/', views.dashboard, name="dashboard"),
     path('versionview/<str:modelname>/',views.versionview,name="versionview"),
+    path('upload/',views.upload,name="upload"),
+    path('upload/form/',views.upload_form,name="upload_form"),
     path('trash/',views.trash,name="trash"),
     path('restore/<str:instance_id>/',views.restore,name="restore"),
     path('deleteins/<str:instance_id>/',views.delete_ins,name="delete_ins"),
@@ -25,4 +27,5 @@ urlpatterns = [
     path('commit/<str:instance_id>/',views.commit,name="commit"),
     path('discard/<str:instance_id>/',views.discard,name="discard"),
     path('rollback/<str:instance_id>/<str:index>/',views.rollback,name="rollback"),
+
 ]
