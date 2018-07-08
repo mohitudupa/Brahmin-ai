@@ -18,6 +18,9 @@
         <a href="{% url 'model:home' %}" class="black-text">Home</a>
     </li>
     <li>
+        <a href="{% url 'model:dashboard' %}" class="black-text">Dashboard</a>
+    </li>
+    <li>
         <a href="{% url 'model:trash' %}" class="black-text">Bin</a>
     </li>
     <li>
@@ -28,6 +31,9 @@
 {% block sidenav %}
     <li>
         <a href="{% url 'model:home' %}" class="black-text">Home</a>
+    </li>
+    <li>
+        <a href="{% url 'model:dashboard' %}" class="black-text">Dashboard</a>
     </li>
     <li>
         <a href="{% url 'model:trash' %}" class="black-text">Bin</a>
@@ -106,13 +112,15 @@
         </div>
 
     <!-- Info 1 -->
-    <section id="api" class="section blue darken-2 center scrollspy">
-        <div class="container">
-             <div class="row">
-                <div class="col s12 m8 l8 section">
-                        <span><i class="material-icons large white-text center">short_text</i></span><br/>
-                        <span class="white-text light flow-text">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Voluptatibus veniam, vel delectus. Quaerat dolor quas animi aut temporibus voluptatibus distinctio, tempore possimus maxime a ipsa rerum provident iusto cum, ex minus itaque sapiente.</span><br/><br/><br/>
-                </div>
+    <section class="section parallax-container scrollspy">
+        <div class="parallax"><img src="{% static 'model/images/slider1.jpg' %}"></div>
+        <div class="row">
+            <div class="col s12 m3 l3 hide-on-small-only">
+                
+            </div>
+            <div class="col s12 m9 l9 white-text">
+                <h4 class="card-title center">API</h4><br/>
+                <p class="flow-text container">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Ipsum eligendi minus deleniti maxime sapiente architecto cupiditate ad, blanditiis quos alias sed itaque ea, illum voluptatem quo esse libero obcaecati non!</p><br/>
             </div>
         </div>
     </section>
@@ -127,5 +135,9 @@
 {% endblock %}
 
 {% block script %}
-
+    <script type="text/javascript">
+        // Parallax
+        const parallax = document.querySelectorAll('.parallax');
+        var instances = M.Parallax.init(parallax, {});    
+    </script>
 {% endblock %}

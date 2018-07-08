@@ -23,7 +23,7 @@
         <a href="{% url 'model:home' %}" class="black-text">Home</a>
     </li>
     <li>
-        <a href="#api" class="black-text">Api</a>
+        <a href="{% url 'model:dashboard' %}" class="black-text">Dashboard</a>
     </li>
     <li>
         <a href="{% url 'model:logout' %}" class="black-text">logout</a>
@@ -33,13 +33,13 @@
 
 {% block sidenav %}
     <li>
-        <a class="black-text">link1</a>
+        <a href="{% url 'model:home' %}" class="black-text">Home</a>
     </li>
     <li>
-        <a  class="black-text">link2</a>
+        <a href="{% url 'model:dashboard' %}" class="black-text">Dashboard</a>
     </li>
     <li>
-        <a  class="black-text">link3</a>
+        <a href="{% url 'model:logout' %}" class="black-text">logout</a>
     </li>
 {% endblock %}
 
