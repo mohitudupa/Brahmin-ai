@@ -296,6 +296,7 @@ class Clone(APIView):
                     "private": x["private"],
                     "trash": x["trash"],
                     "type": x["type"],
+                    "results": [],
                     "buffer": "",
                     "traceback": x["traceback"],
                     "pickle": x["pickle"],
@@ -380,6 +381,7 @@ class Upload(APIView):
                     "private":data["private"],
                     "trash": False,
                     "type": model_type,
+                    "results": [],
                     "buffer": "",
                     "traceback": [],
                     "pickle":data["pickle"],
@@ -882,7 +884,6 @@ class Train(APIView):
 
         # Validating received data
         try:
-            print(type(data["split"]))
             keys = ["id", "split"]
             regex = [text, number]
             types = [str, str]
@@ -942,8 +943,6 @@ class Train(APIView):
             model = pickle.loads(base64.b64decode(x["pickle"]))
 
         training_cases = int(len(x_train) * int(data["split"]) / 100)
-
-        print(training_cases)
 
         try:
             model.fit(x_train[:training_cases], y_train[:training_cases])
@@ -1083,7 +1082,6 @@ class Cluster(APIView):
             error["error"].append("Invalid instance ID")
 
         except KeyError as e:
-            print(e)
             error["error"].append("The following values are required: id, x_cluster")
 
         except UnicodeDecodeError:

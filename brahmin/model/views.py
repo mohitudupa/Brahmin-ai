@@ -97,7 +97,6 @@ def home(request, *args, **kwargs):
         logged_in = False
         if request.user.is_authenticated:
             logged_in = True
-        print(request.user.id)
         return render(request, "model/home.html", {"errors": [], "logged_in": logged_in})
 
 
@@ -176,7 +175,6 @@ def register(request, *args, **kwargs):
 def register_form(request, *args, **kwargs):
     if request.method == "POST":
         data = request.POST
-        print(data)
         error = []
 
         try:
@@ -278,7 +276,6 @@ def upload_form(request):
         data = request.POST
         user = request.user
         user_collection = users.find_one({"user": user.id})
-        print(data)
         error = []
         #validating html data
         try:
@@ -320,6 +317,7 @@ def upload_form(request):
                     "private":eval(data["private"]),
                     "trash":False,
                     "type": model_type,
+                    "results": [],
                     "buffer": "",
                     "traceback": [],
                     "pickle":data["pickle"],
@@ -454,7 +452,6 @@ def instanceview(request,instance_id):
         #return render(request, "model/instance.html", {"errors": False,"final":final})
 
         try:
-            print(instance_id)
             instance = ObjectId(instance_id)
             # Fetching instance data
             x = collection.find_one({"_id": instance, "trash": False})
@@ -482,10 +479,14 @@ def instanceview(request,instance_id):
         predict_results = False
         predict_cols = False
         if x["results"]:
+            results_type = x["results"]
             predict_results = x["results"]
             if not isinstance(predict_results[0], list):
                 predict_results = np.array(predict_results).reshape(-1, 1).tolist()
             predict_cols = list(range(len(predict_results[0])))
+            
+            # Removing previous results from the database
+            collection.update_one({"_id": instance, "user": user.id, "trash": False}, {"$set": {"results": []}})
 
         del x["results"]
         del x["user"]
@@ -493,7 +494,7 @@ def instanceview(request,instance_id):
         del x["buffer"]
         del x["traceback"]
         del x["confidence"]
-        #del x["description"]
+        # del x["description"]
         del x["trash"]
 
         x["id"] = str(instance)
@@ -501,10 +502,6 @@ def instanceview(request,instance_id):
 
         model_log = log.find_one({"instance":instance, "user":user.id})
 
-        # Removing previous results from the database
-        collection.update_one({"_id": instance, "user": user.id, "trash": False}, {"$set": {"results": []}})
-
-        #print(model_detail,model_full_log,model_partial_log)
         return render(request, "model/instance.html", {"errors": errors,
                                                     "model_detail":model_detail,
                                                     "log":model_log["logs"][-10:],
@@ -522,15 +519,9 @@ def instance_train(request):
         user = request.user
         data = request.POST
         files = request.FILES
-        print(data)
-        print(files["x_train_file"])
         error = []
         final = {}
         try:
-
-            print(data)
-            print(files)
-
             keys=["instance_id", "split"]
             regex = [text, number]
             types = [str, str]
@@ -585,8 +576,6 @@ def instance_train(request):
 
         training_cases = int(len(x_train) * int(data["split"]) / 100)
 
-        print(training_cases)
-
         try:
             model.fit(x_train[:training_cases], y_train[:training_cases])
         except Exception as e:
@@ -619,15 +608,9 @@ def instance_cluster(request):
         user = request.user
         data = request.POST
         files = request.FILES
-        print(data)
-        print(files["x_cluster_file"])
         error = []
         final = {}
         try:
-
-            print(data)
-            print(files)
-
             keys=["instance_id"]
             regex = [text, number]
             types = [str, str]
@@ -680,7 +663,7 @@ def instance_cluster(request):
         base64_bytes = base64.b64encode(pickle.dumps(model))
         x["buffer"] = base64_bytes.decode('utf-8')
 
-        collection.update_one({"_id": instance, "user": user.id, "trash": False}, {"$set": {"buffer": x["buffer"]}})
+        collection.update_one({"_id": instance, "user": user.id, "trash": False}, {"$set": {"buffer": x["buffer"], "results": model.cluster_centers_.tolist()}})
         # Logging activity
         log_instance("Cluster", "Clustered with " + str(len(x_cluster)) + "cases", instance)
 
@@ -703,8 +686,6 @@ def instance_test(request):
             regex = [text]
             types = [str]
             error = validate(data, keys, regex, types, error)
-
-            print(data)
 
             text_data = b""
             for chunk in files['x_test_file'].chunks():
@@ -771,8 +752,6 @@ def instance_predict(request):
         user = request.user
         data = request.POST
         files = request.FILES
-        #print(data)
-        #print(files["x_test_file"])
         error = []
         final = {}
         try:
@@ -838,7 +817,6 @@ def commit(request, instance_id):
         data = request.POST
         error = []
         final = {}
-        print(data)
         try:
 
             keys=["description"]
