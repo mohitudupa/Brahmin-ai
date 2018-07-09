@@ -28,6 +28,11 @@ array = r'^\[(.*)*\]$'
 date_format = r'^[0-3][0-9]-[0-1][0-9]-[0-9]{4}$'
 
 
+# List of suupoted and tested ml classes
+supervised_set = ["LinearRegression", "KNeighborsClassifier", "SVC"]
+unsupervised_set = ["KMeans", "MeanShift"]
+
+
 #mongod connection create a db called "modelmgmt" and a collection called "models" in "modelmgmt" db
 client = pymongo.MongoClient()
 db = client["modelmgmt"]
@@ -283,14 +288,18 @@ def upload_form(request):
             error = validate(data, keys, regex, types, error)
 
             try:
-                obj = pickle.loads(base64.b64decode(data['pickle']))
-                print("hello")
-                """if str(type(obj))[8:-2].split(".")[0] != "sklearn":
-                    error["error"].append("Not of type sklearn")
-                """
+                obj = pickle.loads(base64.b64decode(data['pickle']))    
             except:
                 messages.info(request, "invalid pickle")
                 return redirect("model:upload")
+
+            if str(type(obj))[8:-2].split(".")[-1] in supervised_set:
+                model_type = 0
+            elif str(type(obj))[8:-2].split(".")[-1] in unsupervised_set:
+                model_type = 1
+            else:
+                error["error"].append("Model class not yet supported")
+
             try:
                 user_collection["running"][data["name"]][data["version"]]
                 messages.info(request, "Model conflict occoured")
@@ -310,6 +319,7 @@ def upload_form(request):
                     "last_modified":datetime.datetime.now(),
                     "private":eval(data["private"]),
                     "trash":False,
+                    "type": model_type,
                     "buffer": "",
                     "traceback": [],
                     "pickle":data["pickle"],
@@ -469,6 +479,15 @@ def instanceview(request,instance_id):
         if x["buffer"]:
             status = "uncommited"
 
+        predict_results = False
+        predict_cols = False
+        if x["results"]:
+            predict_results = x["results"]
+            if not isinstance(predict_results[0], list):
+                predict_results = np.array(predict_results).reshape(-1, 1).tolist()
+            predict_cols = list(range(len(predict_results[0])))
+
+        del x["results"]
         del x["user"]
         del x["_id"]
         del x["buffer"]
@@ -482,12 +501,18 @@ def instanceview(request,instance_id):
 
         model_log = log.find_one({"instance":instance, "user":user.id})
 
+        # Removing previous results from the database
+        collection.update_one({"_id": instance, "user": user.id, "trash": False}, {"$set": {"results": []}})
+
         #print(model_detail,model_full_log,model_partial_log)
         return render(request, "model/instance.html", {"errors": errors,
                                                     "model_detail":model_detail,
                                                     "log":model_log["logs"][-10:],
                                                     "traceback": model_log["traceback"][-10:],
-                                                    "status": status,})
+                                                    "status": status,
+                                                    "type": x["type"],
+                                                    "results": predict_results,
+                                                    "predict_cols": predict_cols})
 
 
 
@@ -532,6 +557,8 @@ def instance_train(request):
 
             if not x:
                 return redirect("model:dashboard")
+            elif x["type"] != 0:
+                error["error"].append("model does not support testing")
 
         except KeyError:
             messages.info(request, "Invalid form submission")
@@ -560,11 +587,19 @@ def instance_train(request):
 
         print(training_cases)
 
-        model.fit(x_train[:training_cases], y_train[:training_cases])
+        try:
+            model.fit(x_train[:training_cases], y_train[:training_cases])
+        except Exception as e:
+            messages.info(request, str(e))
+            return redirect("model:instanceview", data["instance_id"])
 
         accuracy = 0
-        if len(x_train) - training_cases >= 1:
-            accuracy = model.score(x_train[training_cases:], y_train[training_cases:])
+        if len(x_train) - training_cases >= 2:
+            try:
+                accuracy = model.score(x_train[training_cases:], y_train[training_cases:])
+            except Exception as e:
+                messages.info(request, str(e))
+                return redirect("model:instanceview", data["instance_id"])
         base64_bytes = base64.b64encode(pickle.dumps(model))
         x["buffer"] = base64_bytes.decode('utf-8')
 
@@ -574,6 +609,82 @@ def instance_train(request):
 
         messages.info(request, "Model trained successfully")
         messages.info(request, "Accuracy: " + str(accuracy))
+
+        return redirect("model:instanceview", data["instance_id"])
+
+
+@login_required(login_url="model:login")
+def instance_cluster(request):
+    if request.method == "POST":
+        user = request.user
+        data = request.POST
+        files = request.FILES
+        print(data)
+        print(files["x_cluster_file"])
+        error = []
+        final = {}
+        try:
+
+            print(data)
+            print(files)
+
+            keys=["instance_id"]
+            regex = [text, number]
+            types = [str, str]
+            error = validate(data, keys, regex, types, error)
+
+            text_data = b""
+            for chunk in files['x_cluster_file'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+            x_cluster = np.matrix(pd.read_csv(StringIO(text_data)))
+
+            instance = ObjectId(data["instance_id"])
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
+
+            if not x:
+                return redirect("model:dashboard")
+            elif x["type"] != 1:
+                error["error"].append("model does not support clustering")
+
+        except KeyError:
+            messages.info(request, "Invalid form submission")
+            return redirect("model:dashboard")
+        except AssertionError:
+            messages.info(request, error["error"])
+            return redirect("model:instanceview", data["instance_id"])
+        except UnicodeDecodeError:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:instanceview", data["instance_id"])
+        except AttributeError:
+            messages.info(request, "A text file must be uploaded")
+            return redirect("model:instanceview", data["instance_id"])
+        except bson.errors.InvalidId:
+            messages.info(request, "Invalid instance ID")
+            return redirect("model:dashboard")
+
+
+        # Training the model
+        if x["buffer"]:
+            model = pickle.loads(base64.b64decode(x["buffer"]))
+        else:
+            model = pickle.loads(base64.b64decode(x["pickle"]))
+
+
+        try:
+            model.fit(x_cluster)
+        except Exception as e:
+            messages.info(request, str(e))
+            return redirect("model:instanceview", data["instance_id"])
+
+        base64_bytes = base64.b64encode(pickle.dumps(model))
+        x["buffer"] = base64_bytes.decode('utf-8')
+
+        collection.update_one({"_id": instance, "user": user.id, "trash": False}, {"$set": {"buffer": x["buffer"]}})
+        # Logging activity
+        log_instance("Cluster", "Clustered with " + str(len(x_cluster)) + "cases", instance)
+
+        messages.info(request, "Model trained successfully")
 
         return redirect("model:instanceview", data["instance_id"])
 
@@ -612,6 +723,9 @@ def instance_test(request):
 
             if not x:
                 return redirect("model:dashboard")
+            elif x["type"] != 0:
+                error["error"].append("model does not support testing")
+
         except KeyError:
             messages.info(request, "Invalid form submission")
             return redirect("model:dashboard")
@@ -634,7 +748,11 @@ def instance_test(request):
         else:
             model = pickle.loads(base64.b64decode(x["pickle"]))
 
-        confidence = model.score(x_test, y_test)
+        try:
+            confidence = model.score(x_test, y_test)
+        except Exception as e:
+            messages.info(request, str(e))
+            return redirect("model:instanceview", data["instance_id"])
 
         res = collection.update_one({"_id": instance, "user": user.id, "trash": False},
         {"$set":{"confidence": confidence}})
@@ -698,12 +816,17 @@ def instance_predict(request):
         else:
             model = pickle.loads(base64.b64decode(x["pickle"]))
 
-        y = model.predict(x_predict)
+        try:
+            y = model.predict(x_predict)
+        except Exception as e:
+            messages.info(request, str(e))
+            return redirect("model:instanceview", data["instance_id"])
+
+        collection.update_one({"_id": instance, "user": user.id, "trash": False}, {"$set": {"results": y.tolist()}})
 
         # Logging activity
         log_instance("Predict", "Predictions done on " + str(len(x_predict)) + "cases", instance)
 
-        messages.info(request, "Results: " + str(y))
 
         return redirect("model:instanceview",data["instance_id"])
 

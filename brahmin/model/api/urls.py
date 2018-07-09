@@ -25,6 +25,7 @@ urlpatterns = [
     path('train/', views.Train.as_view(), name="train"),
     path('test/', views.Test.as_view(), name="test"),
     path('predict/', views.Predict.as_view(), name="predict"),
+    path('cluster/', views.Cluster.as_view(), name="cluster"),
     path('commit/', views.Commit.as_view(), name="commit"),
     path('discard/', views.Discard.as_view(), name="discard"),
     path('rollback/', views.RollBack.as_view(), name="rollback"),

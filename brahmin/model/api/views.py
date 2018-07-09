@@ -29,6 +29,11 @@ array = r'^\[(.*)*\]$'
 date_format = r'^[0-3][0-9]-[0-1][0-9]-[0-9]{4}$'
 
 
+# List of suupoted and tested ml classes
+supervised_set = ["LinearRegression", "KNeighborsClassifier", "SVC"]
+unsupervised_set = ["KMeans", "MeanShift"]
+
+
 #mongod connection create a db called "modelmgmt" and a collection called "models" in "modelmgmt" db
 client = pymongo.MongoClient()
 db = client["modelmgmt"]
@@ -290,6 +295,7 @@ class Clone(APIView):
                     "last_modified": datetime.datetime.now(),
                     "private": x["private"],
                     "trash": x["trash"],
+                    "type": x["type"],
                     "buffer": "",
                     "traceback": x["traceback"],
                     "pickle": x["pickle"],
@@ -349,6 +355,14 @@ class Upload(APIView):
                 error["error"].append("Model conflict occoured")
             except KeyError:
                 pass
+
+            if str(type(obj))[8:-2].split(".")[-1] in supervised_set:
+                model_type = 0
+            elif str(type(obj))[8:-2].split(".")[-1] in unsupervised_set:
+                model_type = 1
+            else:
+                error["error"].append("Model class not yet supported")
+
         except KeyError:
             error["error"].append("The following values are required: name, version, pickle, private and docs")
         except AssertionError:
@@ -364,7 +378,8 @@ class Upload(APIView):
                     "date_created":datetime.datetime.now(),
                     "last_modified":datetime.datetime.now(),
                     "private":data["private"],
-                    "trash":False,
+                    "trash": False,
+                    "type": model_type,
                     "buffer": "",
                     "traceback": [],
                     "pickle":data["pickle"],
@@ -899,12 +914,14 @@ class Train(APIView):
 
             if not x:
                 error["error"].append("Instance does not exist")
+            elif x["type"] != 0:
+                error["error"].append("model does not support training")
 
         except bson.errors.InvalidId:
             error["error"].append("Invalid instance ID")
 
         except KeyError:
-            error["error"].append("The following values are required: id, x_train, y_train")
+            error["error"].append("The following values are required: id, split, x_train, y_train")
 
         except UnicodeDecodeError:
             error["error"].append("Invalid text encoding")
@@ -928,7 +945,11 @@ class Train(APIView):
 
         print(training_cases)
 
-        model.fit(x_train[:training_cases], y_train[:training_cases])
+        try:
+            model.fit(x_train[:training_cases], y_train[:training_cases])
+        except Exception as e:
+            error["error"].append(str(e))
+            return Response(error)
 
         accuracy = 0
         if len(x_train) - training_cases >= 1:
@@ -983,6 +1004,8 @@ class Test(APIView):
 
             if not x:
                 error["error"].append("Instance does not exist")
+            elif x["type"] != 0:
+                error["error"].append("model does not support testing")
 
         except bson.errors.InvalidId:
             error["error"].append("Invalid model ID")
@@ -1008,7 +1031,11 @@ class Test(APIView):
         else:    
             model = pickle.loads(base64.b64decode(x["pickle"]))
 
-        confidence = model.score(x_test, y_test)
+        try:
+            confidence = model.score(x_test, y_test)
+        except Exception as e:
+            error["error"].append(str(e))
+            return Response(error)
 
         res = collection.update_one({"_id": ObjectId(data["id"]), "user": user.id, "trash": False},
         {"$set":{"confidence": confidence}})
@@ -1017,6 +1044,83 @@ class Test(APIView):
         log_instance("Test", "Accuracy: " + str(confidence), instance)
 
         return Response({"confidence": confidence})
+
+
+class Cluster(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        error = {"error": []}
+        x_train = []
+        y_train = []
+        x = ''
+
+        # Validating received data
+        try:
+            keys = ["id"]
+            regex = [text]
+            types = [str]
+            error = validate(data, keys, regex, types, error)
+
+            text_data = b""
+            for chunk in request.data['x_cluster'].chunks():
+                text_data += chunk
+            text_data = text_data.decode()
+
+            x_cluster = np.array(pd.read_csv(StringIO(text_data)))
+
+            instance = ObjectId(data["id"])
+            x = collection.find_one({"_id": instance, "user": user.id, "trash": False})
+
+            if not x:
+                error["error"].append("Instance does not exist")
+            elif x["type"] != 1:
+                error["error"].append("model does not support clustering")
+
+        except bson.errors.InvalidId:
+            error["error"].append("Invalid instance ID")
+
+        except KeyError as e:
+            print(e)
+            error["error"].append("The following values are required: id, x_cluster")
+
+        except UnicodeDecodeError:
+            error["error"].append("Invalid text encoding")
+
+        except AttributeError:
+            error["error"].append("A text file must be uploaded")
+
+        except AssertionError:
+            pass
+
+        if error["error"]:
+            return Response(error)
+
+        # Training the model
+        if x["buffer"]:
+            model = pickle.loads(base64.b64decode(x["buffer"]))
+        else:    
+            model = pickle.loads(base64.b64decode(x["pickle"]))
+
+        try:
+            model.fit(x_cluster)
+        except Exception as e:
+            error["error"].append(str(e))
+            return Response(error)
+
+        labels = model.labels_
+        cluster_centers = model.cluster_centers_
+
+        base64_bytes = base64.b64encode(pickle.dumps(model))
+        x["buffer"] = base64_bytes.decode('utf-8')
+
+        collection.update_one({"_id": instance, "user": user.id, "trash": False}, {"$set": {"buffer": x["buffer"]}})
+        # Logging activity
+        log_instance("Train", "Clustered with " + str(len(x_cluster)) + "cases", instance)
+
+        return Response({"success": "The model was clustered successfully", "labels": labels, "cluster_centers": cluster_centers})
 
 
 class Predict(APIView):
@@ -1073,7 +1177,11 @@ class Predict(APIView):
         else:    
             model = pickle.loads(base64.b64decode(x["pickle"]))
 
-        y = model.predict(x_predict)
+        try:
+            y = model.predict(x_predict)
+        except Exception as e:
+            error["error"].append(str(e))
+            return Response(error)
 
         # Logging activity
         log_instance("Predict", "Predictions done on " + str(len(x_predict)) + "cases", instance)
@@ -1182,8 +1290,10 @@ class RollBack(APIView):
         try:
             keys = ["id", "index"]
             regex = [text, number]
-            types = [str, int]
+            types = [str, str]
             error = validate(data, keys, regex, types, error)
+
+            data["index"] = int(data["index"])
 
             instance = ObjectId(data["id"])
             x = collection.find_one({"_id":instance, "user":user.id, "trash":False})

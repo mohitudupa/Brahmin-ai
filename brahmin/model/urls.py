@@ -22,6 +22,7 @@ urlpatterns = [
     path('deleteins/<str:instance_id>/',views.delete_ins,name="delete_ins"),
     path('instanceview/<str:instance_id>/',views.instanceview,name="instanceview"),
     path('instance_train/',views.instance_train,name="instance_train"),
+    path('instance_cluster/',views.instance_cluster,name="instance_cluster"),
     path('instance_test/',views.instance_test,name="instance_test"),
     path('instance_predict/',views.instance_predict,name="instance_predict"),
     path('commit/<str:instance_id>/',views.commit,name="commit"),
