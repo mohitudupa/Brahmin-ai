@@ -36,10 +36,11 @@ class Index(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def post(self, request, format=None):
-        pros = threading.Thread(target=loop)
-        print(pros.daemon)
-        pros.daemon = False
-        pros.start()
+        data = request.data
+
+        print(data)
+        print(data["z"])
+
         return Response(request.data)
 
 

@@ -22,6 +22,7 @@ number = r'^[0-9]+$'
 text = r'^.'
 date_format = r'^[0-3][0-9]-[0-1][0-9]-[0-9]{4}$'
 func = r"__.*__"
+boolean = r'^(True)$|(False)$'
 
 
 #mongod connection create a db called "modelmgmt" and a collection called "models" in "modelmgmt" db
@@ -33,28 +34,26 @@ logs = db["logs"]
 users = db["users"]
 
 
-types = ["str", "int", "float"]
+def array(x, data):
+    text_data = ""
+    for chunk in data.chunks():
+        text_data += chunk.decode()
+
+    shape = [int(i) for i in x]
+    return np.array(pd.read_csv(StringIO(text_data))).reshape(shape).tolist()
 
 
-def get_data(template_dict, data):
+types = ["str", "int", "float", "bool"]
+
+def get_params(type_data, data):
     params = {}
-    template_params = template_dict["data"]
-    for i in template_params.keys():
-        if template_params[i][0] in types:
-            params[i] = eval(template_params[i][0])(data[i])
-
-        elif template_params[i][0] == "array":
-            text_data = b""
-            for chunk in data[i][0].chunks():
-                text_data += chunk
-            text_data = text_data.decode()
-
-            shape = template_params[i][1:]
-            params[i] = np.array(pd.read_csv(StringIO(text_data))).reshape(shape).tolist()
-
-        elif template_params == "bool":
-            params[i] = eval(data[i])
-
+    for i in type_data:
+        if i[1] in types:
+            params[i[0]] = eval(i[1])(data[i[0]][0])
+        elif i[1] == "array":
+            params[i[0]] = array(i[2:], data[i[0]][0])
+        else:
+            raise AssertionError()
     return params
 
 
@@ -73,6 +72,7 @@ def log_instance(action, description, model):
 
 def validate(data, keys, regex, types, error):
     for i in range(len(keys)):
+        print(data[keys[i]], str(type(data[keys[i]])), types[i])
         if isinstance(data[keys[i]], types[i]):
             if not bool(re.match(regex[i], str(data[keys[i]]))):
                 error["error"].append("Invalid value for " + keys[i])
@@ -95,20 +95,18 @@ class ExecCommand(APIView):
         x = ''
 
         try:
-            keys = ["model_id", "template_id", "function"]
-            regex = [text, text, text]
-            types = [str, str, str]
+            keys = ["model_id", "kwargs", "function", "type_data"]
+            regex = [text, boolean, text, text]
+            types = [str, str, str, str]
             error = validate(data, keys, regex, types, error)
 
+            data["type_data"] = eval(data["type_data"])
+            data["kwargs"] = eval(data["kwargs"])
+
             model = ObjectId(data["model_id"])
-            template = ObjectId(data["template_id"])
 
             if data["model_id"] not in user_collection["running"].keys():
                 error["error"].append("Model does not exist")
-                raise AssertionError()
-            
-            if data["template_id"] not in user_collection["templates"].keys():
-                error["error"].append("Template does not exist")
                 raise AssertionError()
             
             if user_collection["running"][data["model_id"]][3]:
@@ -118,33 +116,17 @@ class ExecCommand(APIView):
             x = models.find_one({"_id": model})
             clf = x["pickle"] if x["pickle"] else x["traceback"][-1]
 
-            """func_list = []
-            for i in dir(clf):
-                try:
-                    if (not re.match(func, i)) and (callable(getattr(clf, i))):
-                        func_list.append(i)
-                except:
-                    pass
-
-            print(func_list)
-
-            if data["function"] not in func_list:
-                error["error"].append("function does not exist")
-                raise AssertionError()"""
-
             input_params = dict(data)
-            del input_params["function"]
-            del input_params["template_id"]
-            del input_params["model_id"]
+            del input_params["function"], input_params["kwargs"]
+            del input_params["model_id"], input_params["type_data"]
 
-            template_params = dict(templates.find_one({"_id": template}))
-            params = get_data(template_params, input_params)
+            params = get_params(data["type_data"], input_params)
 
         except bson.errors.InvalidId:
             error["error"].append("Invalid instance ID")
 
         except KeyError:
-            error["error"].append("The following values are required: id, split, x_train, y_train")
+            error["error"].append("The following values are required: model_id, kwargs, function, type_data")
 
         except UnicodeDecodeError:
             error["error"].append("Invalid text encoding")
@@ -165,6 +147,7 @@ class ExecCommand(APIView):
         params["clf"] = clf
         params["cmd"] = data["function"]
         params["user_id"] = user.id
+        params["kwargs"] = data["kwargs"]
 
         # print("Params:", params)
 
@@ -172,8 +155,6 @@ class ExecCommand(APIView):
         task_id = result.task_id
 
         user_collection["running"][data["model_id"]][3] = 1
-
-        models.update_one({"_id": model}, {"$set": {"status": 1, "task_id": task_id}})
         users.update_one({"user": user.id}, {"$set": {"running": user_collection["running"]}})
 
         return Response({"success": "The model is queued for: " + str(data["function"])})
@@ -219,7 +200,6 @@ class Abort(APIView):
 
         revoke(str(x["task_id"]))
 
-        models.update_one({"_id": model}, {"$set": {"status": 0, "task_id": 0}})
         user_collection["running"][data["model_id"]][3] = 0
         users.update_one({"user": user.id}, {"$set": {"running": user_collection["running"]}})
 
