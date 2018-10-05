@@ -1,0 +1,602 @@
+
+==========================================================================================================
+get token :
+    
+    Input: {
+        "token": Not required,
+        "url": "/model/api/gettoken/",
+        "data": {
+            "username": str, # The username of the account
+            "password": str, # The password of the account
+        }
+    }
+
+    Output: The api token for the user
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/gettoken/
+        data = {
+            "username": "your username",
+            "password": "your password"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+change password :
+
+    Input: {
+        "token": Required,
+        "url": "/model/api/changepassword/",
+        "data": {
+            "old_password": str, # Old password
+            "new_password": str, # New password
+        }
+    }
+
+    Output: A success message and changes the current users password
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/changepassword/
+        data = {
+            "old_password": "old password",
+            "new_password": "new password"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+change token :
+
+    Input: {
+        "token": Required,
+        "url": "/model/api/changetoken/",
+        "data": {
+                    "username": str, # The username of the account
+                    "password": str, # The password of the account
+        }
+    }
+
+    Output: The newly generated token for the current user
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/changetoken/
+        data = {
+            "username": "your username",
+            "password": "your password"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+get details :
+
+    Input: {
+        "url": "/model/api/getdetails/",
+        "data": {
+            "trash": bool, # True to look into the trash, false to exclude trash contents
+        }
+    }
+
+    Output: A json object with a list of all the models in the below given format:
+                "<Model ID>": [
+                        "<Model Name>",
+                        "<Model Version>",
+                        "<Model Documentation>",
+                        <Model Status Running or Idle>,
+                ]
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/getdetails/
+        data = {
+            "trash": false
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+get model id :
+
+    Input: {
+        "url": "/model/api/getmodelid/",
+        "data": {
+            "name": str, # Name of the model
+            "version": str, # Version of the model
+            "trash": bool # True to look into the trash, false to exclude trash contents
+        }
+    }
+
+    Output: The model id for the above name and version details
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/getmodelid/
+        data = {
+            "name": "Alpha",
+            "version": "1.0",
+            "trash": false
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+get model :
+
+    Input: {
+        "url": "/model/api/getmodel/",
+        "data": {
+            "model_id": str, # Model Id
+        }
+    }
+
+    Output: Details of the model, including its pickle, previous versions, etc
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/getmodel/
+        data = {
+            "model_id": "Model_Id"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+get log :
+
+    Input: {
+        "url": "/model/api/getlog/",
+        "data": {
+            "model_id": str, # Model Id
+        }
+    }
+
+    Output: Logs of the model in the following format:
+                [
+                    [
+                        "<DD-MM-YYYY>",
+                        "<Action>",
+                        "<Description>",
+                    ],
+                    [
+                        "<DD-MM-YYYY>",
+                        "<Action>",
+                        "<Description>",
+                    ],
+
+                    .
+                    .
+                    .
+
+                ]
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/getlog/
+        data = {
+            "model_id": "Model_Id"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+get user log :
+
+    Input: {
+        "url": "/model/api/getuserlog/",
+        "data": {}
+    }
+
+    Output: Logs for all the models of the user
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/getuserlog/
+        data = {}
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+get date log :
+
+    Input: {
+        "url": "/model/api/getdatelog/",
+        "data": {
+            "date": str, # Date in DD-MM-YYYY format
+        }
+    }
+
+    Output: Logs of user activity on a given date
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/getdatelog/
+        data = {
+            "date": "03-10-2018"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+get traceback :
+
+    Input: {
+        "url": "/model/api/gettraceback/",
+        "data": {
+            "model_id": str # Model Id
+        }
+    }
+
+    Output: Commit history in the following format:
+                [
+                    [
+                        "<DD-MM-YYYY>",
+                        "<Age>",
+                        "<Description>",
+                    ],
+                    [
+                        "<DD-MM-YYYY>",
+                        "<Age>",
+                        "<Description>",
+                    ],
+
+                    .
+                    .
+                    .
+
+                ]
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/gettraceback/
+        data = {
+            "model_id": "Model_Id"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+get status :
+
+    Input: {
+        "url": "/model/api/getstatus/",
+        "data": {
+            "model_id": str, # Model Id
+        }
+    }
+
+    Output: Uncommited changes to the model
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/getstatus/
+        data = {
+            "model_id": "Model_Id"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+delete model :
+
+    Input: {
+        "url": "/model/api/deletemodel/",
+        "data": {
+            "model_id": str, # Model Id
+        }
+    }
+
+    Output: Success message on moving to trash
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/deletemodel/
+        data = {
+            "model_id": "Model_Id"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+restore model :
+
+    Input: {
+        "url": "/model/api/restoremodel/",
+        "data": {
+            "model_id": str, # Model Id
+        }
+    }
+
+    Output: Success message on restoring from trash
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/restoremodel/
+        data = {
+            "model_id": "Model_Id"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+clone model :
+
+    Input: {
+        "url": "/model/api/clonemodel/",
+        "data": {
+            "model_id": str, # Model Id of an existing model that is to be cloned
+        }
+    }
+
+    Output: Model ID of the newly cloned model
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/clonemodel/
+        data = {
+            "model_id": "Model_Id"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+upload model :
+
+    Input: {
+        "url": "/model/api/uploadmodel/",
+        "data": {
+            "name": str, # Name of the model
+            "version": str, # Version of the model
+            "pickle" : str, # Pickle of the model in base64 format
+            "docs": str, # Documentation
+        }
+    }
+
+    Output: Model ID of the newly created model on success
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/uploadmodel/
+        data = {
+            "name": "Alpha",
+            "version": "1.0",
+            "pickle": "gANjc2tsZWFybi5zdm0uY2xhc3NlcwpTVkMKcQApgXEBfXECKFgXAAAAZGVjaXNpb25fZnVuY3Rpb25fc2hhcGVxA1gDAAAAb3ZycQRYBQAAAF9pbXBscQVYBQAAAGNfc3ZjcQZYBgAAAGtlcm5lbHEHWAMAAAByYmZxCFgGAAAAZGVncmVlcQlLA1gFAAAAZ2FtbWFxClgEAAAAYXV0b3ELWAUAAABjb2VmMHEMRwAAAAAAAAAAWAMAAAB0b2xxDUc/UGJN0vGp/FgBAAAAQ3EORz/wAAAAAAAAWAIAAABudXEPRwAAAAAAAAAAWAcAAABlcHNpbG9ucRBHAAAAAAAAAABYCQAAAHNocmlua2luZ3ERiFgLAAAAcHJvYmFiaWxpdHlxEolYCgAAAGNhY2hlX3NpemVxE0vIWAwAAABjbGFzc193ZWlnaHRxFE5YBwAAAHZlcmJvc2VxFYlYCAAAAG1heF9pdGVycRZK/////1gMAAAAcmFuZG9tX3N0YXRlcRdOWBAAAABfc2tsZWFybl92ZXJzaW9ucRhYBgAAADAuMTkuMXEZdWIu",
+            "docs": "This is some documentation...."
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+edit model :
+
+    Input: {
+        "url": "/model/api/editmodel/",
+        "data": {
+            "model_id": str, # Model Id
+            "new_name": str, # New model name
+            "new_version": str, # New model version
+            "description": str, # Description
+            "new_docs": str, # New model documentation
+        }
+    }
+
+    Output: Success message on model edit
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/editmodel/
+        data = {
+            "model_id": "Model_Id",
+            "new_name": "Beta",
+            "new_version": "2.0",
+            "description": "This is some description....",
+            "new_docs": "This is some new documentation...."
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+commit :
+
+    Input: {
+        "url": "/model/api/commit/",
+        "data": {
+            "model_id": str, # Model Id
+            "description": str, # Commit description
+        }
+    }
+
+    Output: Success message
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/commit/
+        data = {
+            "model_id": "Model_Id",
+            "description": "This is some description...."
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+discard :
+
+    Input: {
+        "url": "/model/api/discard/",
+        "data": {
+            "model_id": str, # Model Id
+        }
+    }
+
+    Output: Success message
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/discard/
+        data = {
+            "model_id": "Model_Id"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+rollback :
+
+    Input: {
+        "url": "/model/api/rollback/",
+        "data": {
+            "model_id": str, # Model Id
+            "index": str, # Age of the model to be rolled back to
+        }
+    }
+
+    Output: Success message
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/rollback/
+        data = {
+            "model_id": "Model_Id",
+            "index": 0
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+abort :
+
+    Input: {
+        "url": "/model/api/abort/",
+        "data": {
+            "model_id": str, # Model Id
+        }
+    }
+
+    Output: Success message
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/abort/
+        data = {
+            "model_id": "Model_Id"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+get result :
+
+    Input: {
+        "url": "/model/api/getresult/",
+        "data": {
+            "model_id": str, # Model Id
+        }
+    }
+
+    Output: Results of the recent exec command in the following format:
+                [
+                    <Exit status>,
+                    <Operation>,
+                    <Return Values / Error message>,
+                ]
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/getresult/
+        data = {
+            "model_id": "Model_Id"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+        
+==========================================================================================================
+get attribute :
+
+    Input: {
+        "url": "/model/api/getattribute/",
+        "data": {
+            "model_id": str, # Model Id
+            "attribute": str, # Attribute name that needs to be accessed
+        }
+    }
+
+    Output: The value of the attribute
+
+    Example:
+
+        url = http://127.0.0.1:8000/model/api/getattribute/
+        data = {
+            "model_id": "Model_Id",
+            "attribute": "max_iter"
+        }
+        headers = {'Content-type': 'application/json', 'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, header=header)
+        print(r.json())
+
+==========================================================================================================
+exec command :
+
+    Input: {
+        "url": "model/api/execcommand/",
+        "data": {
+            "model_id": str, # Model Id
+            "kwargs": bool, # True for kwargs function call, False for args function call
+            "function": str, # Name of the function to be executed
+            "type_data": str, # String encoded list of the following format:
+                              #     [["Argument Name", "type", Optional_size_arguments],
+                              #      ["Argument Name", "type", Optional_size_arguments]]
+                              # Example: [["X", "array", -1, 10], ["y", "array", -1], ["max_iter", "int"]]
+            "key": str # Key value pairs of all the int, float, list and bool type data that is mentioned in
+                       # type_data
+                       # Example: "max_iter": 300
+        }
+        "files": {
+            # Files with the same name as mentioned in the type_data
+            # Files are only needed if the type is of array
+            # File myst be of type csv
+        }
+    }
+
+    Output: Success message
+
+    Example:
+        url = http://127.0.0.1:8000/model/api/execcommand/
+        data = {
+            "model_id": "Model_Id",
+            "kwargs": "False",
+            "function": "fit",
+            "type_data": "[["X", "array", -1, 10], ["y", "array", -1]]"
+        }
+        files = {
+            "X": open("X.csv", "r"),
+            "y": open("y.csv", "r")
+        }
+        headers = {'Authorization': 'token###Your_Token###'}
+        r = requests.post(url=url, data=data, files=files, header=header)
+        print(r.json())
+
+==========================================================================================================
