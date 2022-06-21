@@ -22,7 +22,7 @@ kombu==4.2.1
 
 Markdown==2.6.11
 
-numpy==1.14.2
+numpy==1.22.0
 
 pandas==0.22.0
 
